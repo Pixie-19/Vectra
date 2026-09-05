@@ -5,6 +5,7 @@ import {Test} from "forge-std/Test.sol";
 
 import {VectraTreasury} from "../contracts/VectraTreasury.sol";
 import {MockUSDC} from "./mocks/MockUSDC.sol";
+import {console2} from "forge-std/console2.sol";
 
 contract VectraTreasuryTest is Test {
     MockUSDC usdc;
