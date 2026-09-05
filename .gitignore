@@ -1,25 +1,22 @@
-# Dependencies
+
 node_modules/
 
-# Build output
-dist/
-
-# Environment variables
 .env
 !.env.example
 .env.*
 
+dist/
 
-# Logs
+out/
+cache/
+broadcast/
+
 *.log
 
-# OS files
+coverage/
+
 .DS_Store
 Thumbs.db
 
-# IDE
 .vscode/
 .idea/
-
-# Coverage
-coverage/
