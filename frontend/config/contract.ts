@@ -6,64 +6,30 @@ export const vectraTreasuryAbi = [
     name: "coordinators",
     type: "function",
     stateMutability: "view",
-    inputs: [
-      {
-        name: "",
-        type: "bytes32",
-      },
-    ],
-    outputs: [
-      {
-        name: "",
-        type: "address",
-      },
-    ],
+    inputs: [{ name: "", type: "bytes32" }],
+    outputs: [{ name: "", type: "address" }],
   },
-
   {
     name: "nonces",
     type: "function",
     stateMutability: "view",
-    inputs: [
-      {
-        name: "",
-        type: "bytes32",
-      },
-    ],
-    outputs: [
-      {
-        name: "",
-        type: "uint256",
-      },
-    ],
+    inputs: [{ name: "", type: "bytes32" }],
+    outputs: [{ name: "", type: "uint256" }],
   },
-
   {
     name: "usdc",
     type: "function",
     stateMutability: "view",
     inputs: [],
-    outputs: [
-      {
-        name: "",
-        type: "address",
-      },
-    ],
+    outputs: [{ name: "", type: "address" }],
   },
-
   {
     name: "registerGroup",
     type: "function",
     stateMutability: "nonpayable",
-    inputs: [
-      {
-        name: "groupId",
-        type: "bytes32",
-      },
-    ],
+    inputs: [{ name: "groupId", type: "bytes32" }],
     outputs: [],
   },
-
   {
     name: "executeSettlementIntent",
     type: "function",
@@ -73,30 +39,12 @@ export const vectraTreasuryAbi = [
         name: "intent",
         type: "tuple",
         components: [
-          {
-            name: "groupId",
-            type: "bytes32",
-          },
-          {
-            name: "nonce",
-            type: "uint256",
-          },
-          {
-            name: "deadline",
-            type: "uint256",
-          },
-          {
-            name: "from",
-            type: "address[]",
-          },
-          {
-            name: "to",
-            type: "address[]",
-          },
-          {
-            name: "amounts",
-            type: "uint256[]",
-          },
+          { name: "groupId", type: "bytes32" },
+          { name: "nonce", type: "uint256" },
+          { name: "deadline", type: "uint256" },
+          { name: "from", type: "address[]" },
+          { name: "to", type: "address[]" },
+          { name: "amounts", type: "uint256[]" },
         ],
       },
       {
@@ -106,25 +54,88 @@ export const vectraTreasuryAbi = [
     ],
     outputs: [],
   },
-
   {
     name: "transferOut",
     type: "function",
     stateMutability: "nonpayable",
     inputs: [
+      { name: "groupId", type: "bytes32" },
+      { name: "recipient", type: "address" },
+      { name: "amount", type: "uint256" },
+    ],
+    outputs: [],
+  },
+
+  // ------------------------------------------------------------
+  // EVENTS
+  // ------------------------------------------------------------
+
+  {
+    name: "GroupRegistered",
+    type: "event",
+    anonymous: false,
+    inputs: [
       {
+        indexed: true,
         name: "groupId",
         type: "bytes32",
       },
       {
-        name: "recipient",
+        indexed: true,
+        name: "coordinator",
+        type: "address",
+      },
+    ],
+  },
+
+  {
+    name: "SettlementExecuted",
+    type: "event",
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        name: "groupId",
+        type: "bytes32",
+      },
+      {
+        indexed: true,
+        name: "from",
         type: "address",
       },
       {
+        indexed: true,
+        name: "to",
+        type: "address",
+      },
+      {
+        indexed: false,
         name: "amount",
         type: "uint256",
       },
     ],
-    outputs: [],
+  },
+
+  {
+    name: "SettlementIntentExecuted",
+    type: "event",
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        name: "groupId",
+        type: "bytes32",
+      },
+      {
+        indexed: true,
+        name: "signer",
+        type: "address",
+      },
+      {
+        indexed: false,
+        name: "nonce",
+        type: "uint256",
+      },
+    ],
   },
 ] as const;
