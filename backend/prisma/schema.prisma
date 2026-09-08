@@ -1,0 +1,120 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum GroupStatus {
+  ACTIVE
+  DEACTIVATED
+}
+
+enum MemberRole {
+  COORDINATOR
+  MEMBER
+}
+
+enum SettlementStatus {
+  PENDING
+  SUBMITTED
+  COMPLETED
+  FAILED
+}
+
+model User {
+  id            String   @id @default(cuid())
+  walletAddress String   @unique
+  createdAt     DateTime @default(now())
+  lastSeenAt    DateTime @updatedAt
+
+  memberships   Membership[]
+  createdGroups Group[] @relation("GroupCoordinator")
+  createdInvites Invite[] @relation("InviteCreator")
+  createdExpenses Expense[] @relation("ExpenseCreator")
+}
+
+model Group {
+  id                String      @id @default(cuid())
+  blockchainGroupId String      @unique
+  name              String
+  coordinatorAddress String
+  inviteCode        String      @unique
+  status            GroupStatus @default(ACTIVE)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  coordinator       User         @relation("GroupCoordinator", fields: [coordinatorAddress], references: [walletAddress])
+  memberships       Membership[]
+  invites           Invite[]
+  expenses          Expense[]
+  settlements       Settlement[]
+
+  @@index([coordinatorAddress])
+}
+
+model Membership {
+  id            String     @id @default(cuid())
+  groupId       String
+  walletAddress String
+  role          MemberRole @default(MEMBER)
+  joinedAt      DateTime   @default(now())
+
+  group         Group      @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user          User       @relation(fields: [walletAddress], references: [walletAddress], onDelete: Cascade)
+
+  @@unique([groupId, walletAddress])
+  @@index([walletAddress])
+}
+
+model Invite {
+  id          String   @id @default(cuid())
+  groupId     String
+  code        String   @unique
+  createdBy   String
+  expiresAt   DateTime?
+  maxUses     Int?
+  uses        Int      @default(0)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  group       Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  creator     User     @relation("InviteCreator", fields: [createdBy], references: [walletAddress])
+
+  @@index([groupId])
+}
+
+model Expense {
+  id          String   @id @default(cuid())
+  groupId     String
+  description String
+  amount      Decimal  @db.Decimal(18, 6)
+  paidBy      String
+  createdBy   String
+  settled     Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  group       Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  creator     User     @relation("ExpenseCreator", fields: [createdBy], references: [walletAddress])
+
+  @@index([groupId])
+  @@index([paidBy])
+}
+
+model Settlement {
+  id            String           @id @default(cuid())
+  groupId       String
+  nonce         BigInt
+  totalAmount   Decimal          @db.Decimal(18, 6)
+  status        SettlementStatus @default(PENDING)
+  initiatedBy   String
+  transactionHash String?
+  createdAt     DateTime         @default(now())
+  completedAt   DateTime?
+
+  group         Group            @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, nonce])
+  @@index([groupId])
+}

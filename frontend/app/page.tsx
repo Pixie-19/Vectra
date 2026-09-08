@@ -31,6 +31,8 @@ import {
 
 import { arcTestnet } from "../config/wagmi";
 
+import { apiFetch } from "../lib/api";
+
 type Settlement = {
   from: string;
   to: string;
@@ -38,15 +40,28 @@ type Settlement = {
 };
 
 type Expense = {
+  id: string;
+  groupId: string;
   description: string;
   amount: string;
   paidBy: string;
-  groupId: `0x${string}`;
+  createdBy: string;
+  settled: boolean;
+  createdAt: string;
+};
+
+type ActiveSettlementSnapshot = {
+  settlementId: string;
+  groupId: string;
+  nonce: string;
+  totalAmount: string;
+  expenseIds: string[];
 };
 
 type Member = {
   name: string;
   address: string;
+  role?: "COORDINATOR" | "MEMBER";
 };
 
 type ActivityItem = {
@@ -59,77 +74,23 @@ type ActivityItem = {
   coordinator?: string;
 };
 
-type GroupLocalData = {
+type BackendGroup = {
+  id: string;
+  blockchainGroupId: string;
   name: string;
-  members: Member[];
-  expenses: Expense[];
-  settledExpenseBatch: string | null;
+  coordinatorAddress: string;
+  inviteCode: string;
+  status: "ACTIVE" | "DEACTIVATED";
+  memberships: {
+    walletAddress: string;
+    role: "COORDINATOR" | "MEMBER";
+  }[];
 };
 
-type GroupStorage = Record<string, GroupLocalData>;
-
-const GROUP_STORAGE_KEY = "vectra-groups";
-
-const loadGroupStorage = (): GroupStorage => {
-  try {
-    const saved = localStorage.getItem(
-      GROUP_STORAGE_KEY
-    );
-
-    if (!saved) {
-      return {};
-    }
-
-    const parsed = JSON.parse(saved);
-
-    if (
-      parsed &&
-      typeof parsed === "object" &&
-      !Array.isArray(parsed)
-    ) {
-      return parsed as GroupStorage;
-    }
-  } catch (error) {
-    console.error(
-      "Failed to load group storage:",
-      error
-    );
-  }
-
-  return {};
-};
-
-const saveGroupStorage = (
-  storage: GroupStorage
-) => {
-  try {
-    localStorage.setItem(
-      GROUP_STORAGE_KEY,
-      JSON.stringify(storage)
-    );
-  } catch (error) {
-    console.error(
-      "Failed to save group storage:",
-      error
-    );
-  }
-};
-
-const DEMO_GROUP_ID =
-  "0x79ad273f17e1a87e921c1d3c800b80208b1711b8439484f54ba2407636b297ff" as const;
-
-const INITIAL_MEMBERS: Member[] = [
-  {
-    name: "Coordinator",
-    address:
-      "0x1CcFa4DAcd8Babe1EB5b21577bB95eBc7b9398d3",
-  },
-  {
-    name: "Member",
-    address:
-      "0x343ea172022c4f671a6355475872e352c96459Dc",
-  },
-];
+/*
+ * Group identifiers, memberships, expenses, and settlements
+ * are now authoritative from PostgreSQL backend.
+ */
 
 const SETTLEMENT_TYPES = {
   Settlement: [
@@ -184,6 +145,27 @@ const usdcAbi = [
       {
         name: "",
         type: "bool",
+      },
+    ],
+  },
+  {
+    name: "allowance",
+    type: "function",
+    stateMutability: "view",
+    inputs: [
+      {
+        name: "owner",
+        type: "address",
+      },
+      {
+        name: "spender",
+        type: "address",
+      },
+    ],
+    outputs: [
+      {
+        name: "",
+        type: "uint256",
       },
     ],
   },
@@ -251,17 +233,50 @@ export default function Home() {
   useState(false);
 
   const [members, setMembers] =
-    useState<Member[]>(INITIAL_MEMBERS);
+    useState<Member[]>([]);
+
+  /*
+   * Join group state.
+   */
+  const [joinCode, setJoinCode] =
+    useState("");
+
+  const [isJoiningGroup, setIsJoiningGroup] =
+    useState(false);
+
+  const [joinGroupError, setJoinGroupError] =
+    useState<string | null>(null);
+
+  const [joinGroupSuccess, setJoinGroupSuccess] =
+    useState<string | null>(null);
+
+  /*
+   * Invite code copy feedback.
+   */
+  const [copiedInviteCode, setCopiedInviteCode] =
+    useState(false);
+
+  /*
+   * Group deactivation state.
+   */
+  const [isDeactivatingGroup, setIsDeactivatingGroup] =
+    useState(false);
+
+  const [deactivateError, setDeactivateError] =
+    useState<string | null>(null);
+
+  const [deactivateSuccess, setDeactivateSuccess] =
+    useState<string | null>(null);
 
   const [groupName, setGroupName] =
     useState("");
 
   const [activeGroupName, setActiveGroupName] =
-    useState("Demo Group");
+    useState("");
 
   const [activeGroupId, setActiveGroupId] =
-    useState<`0x${string}`>(
-      DEMO_GROUP_ID
+    useState<`0x${string}` | null>(
+      null
     );
 
   const [expenseDescription, setExpenseDescription] =
@@ -276,22 +291,32 @@ export default function Home() {
   const [expenses, setExpenses] =
     useState<Expense[]>([]);
 
-  /*
-   * Stores the exact current expense batch that has
-   * already been successfully settled.
-   *
-   * Expenses themselves are preserved as history.
-   */
-  const [settledExpenseBatch, setSettledExpenseBatch] =
+  const [isExpensesLoading, setIsExpensesLoading] =
+    useState(false);
+
+  const [expensesError, setExpensesError] =
     useState<string | null>(null);
-  const [pendingSettlementBatch, setPendingSettlementBatch] =
-  useState<string | null>(null);
+
+  const [isAddingExpense, setIsAddingExpense] =
+    useState(false);
+
+  const [isDeletingExpenseId, setIsDeletingExpenseId] =
+    useState<string | null>(null);
+
+  const [activeSettlementSnapshot, setActiveSettlementSnapshot] =
+    useState<ActiveSettlementSnapshot | null>(null);
+
+  const [settlementExecutionError, setSettlementExecutionError] =
+    useState<string | null>(null);
 
   const [settlementSignature, setSettlementSignature] =
     useState<`0x${string}` | null>(null);
 
   const [settlementDeadline, setSettlementDeadline] =
     useState<bigint | null>(null);
+
+  const [confirmedApprovals, setConfirmedApprovals] =
+    useState<Record<string, string>>({});
 
   /*
    * Connected wallet ENS identity.
@@ -341,275 +366,50 @@ export default function Home() {
     useState<string | null>(null);
 
   /*
-   * Create a stable representation of the current
-   * expense batch.
+   * Backend group list.
    *
-   * This is used to determine whether the current
-   * expenses have already been settled.
+   * Fetched from PostgreSQL via the backend API.
+   * Only groups where the connected wallet is a
+   * member are returned.
    */
-  const currentExpenseBatch =
-    JSON.stringify(
-      expenses.map((expense) => ({
-        description:
-          expense.description,
-        amount: expense.amount,
-        paidBy:
-          expense.paidBy.toLowerCase(),
-        groupId: expense.groupId,
-      }))
-    );
+  const [backendGroups, setBackendGroups] =
+    useState<BackendGroup[]>([]);
+
+  const [isBackendGroupsLoading, setIsBackendGroupsLoading] =
+    useState(false);
+
+  const [backendGroupsError, setBackendGroupsError] =
+    useState<string | null>(null);
 
   /*
-   * Load locally persisted Vectra data.
+   * Pending group creation metadata.
+   *
+   * Stored between the blockchain registerGroup call
+   * and the on-chain confirmation, so the useEffect
+   * callback knows what to POST to the backend.
+   */
+  const [pendingGroupCreation, setPendingGroupCreation] =
+    useState<{
+      name: string;
+      blockchainGroupId: `0x${string}`;
+      inviteCode: string;
+    } | null>(null);
+
+  const [isCreatingGroupBackend, setIsCreatingGroupBackend] =
+    useState(false);
+
+  const [createGroupError, setCreateGroupError] =
+    useState<string | null>(null);
+
+  /*
+   * Vectra client mount initialization.
+   * State is authoritative from PostgreSQL backend.
    */
   useEffect(() => {
-  setMounted(true);
-
-  try {
-    const savedGroupName = localStorage.getItem(
-      "vectra-active-group-name"
-    );
-
-    const savedGroupId = localStorage.getItem(
-      "vectra-active-group-id"
-    );
-
-    const savedExpenses = localStorage.getItem(
-      "vectra-expenses"
-    );
-
-    const savedMembers = localStorage.getItem(
-      "vectra-members"
-    );
-
-    const savedSettledExpenseBatch = localStorage.getItem(
-      "vectra-settled-expense-batch"
-    );
-
-    /*
-     * Migrate the old global storage format into
-     * the new per-group storage format.
-     */
-    const existingGroupStorage = localStorage.getItem(
-      GROUP_STORAGE_KEY
-    );
-
-    if (!existingGroupStorage) {
-      const migratedStorage: GroupStorage = {
-        [DEMO_GROUP_ID.toLowerCase()]: {
-          name: "Demo Group",
-          members: INITIAL_MEMBERS,
-          expenses: [],
-          settledExpenseBatch: null,
-        },
-      };
-
-      if (savedMembers) {
-        const parsedMembers = JSON.parse(savedMembers);
-
-        if (
-          Array.isArray(parsedMembers) &&
-          parsedMembers.length > 0
-        ) {
-          migratedStorage[
-            DEMO_GROUP_ID.toLowerCase()
-          ].members = parsedMembers;
-        }
-      }
-
-      if (savedExpenses) {
-        const parsedExpenses = JSON.parse(savedExpenses);
-
-        if (Array.isArray(parsedExpenses)) {
-          migratedStorage[
-            DEMO_GROUP_ID.toLowerCase()
-          ].expenses = parsedExpenses;
-        }
-      }
-
-      if (savedSettledExpenseBatch) {
-        migratedStorage[
-          DEMO_GROUP_ID.toLowerCase()
-        ].settledExpenseBatch = savedSettledExpenseBatch;
-      }
-
-      saveGroupStorage(migratedStorage);
-    }
-
-    if (savedGroupName) {
-      setActiveGroupName(savedGroupName);
-    }
-
-    if (
-      savedGroupId &&
-      savedGroupId.startsWith("0x")
-    ) {
-      const normalizedGroupId =
-        savedGroupId.toLowerCase();
-
-      setActiveGroupId(
-        savedGroupId as `0x${string}`
-      );
-
-      /*
-       * Load data belonging specifically to
-       * the currently active group.
-       */
-      const groupStorage = loadGroupStorage();
-
-      const groupData =
-        groupStorage[normalizedGroupId];
-
-      if (groupData) {
-        setMembers(groupData.members);
-        setExpenses(groupData.expenses);
-        setSettledExpenseBatch(
-          groupData.settledExpenseBatch
-        );
-      } else {
-        /*
-         * New group with no local data yet.
-         */
-        setMembers([]);
-        setExpenses([]);
-        setSettledExpenseBatch(null);
-      }
-    } else {
-      /*
-       * No active group exists yet.
-       */
-      setMembers([]);
-      setExpenses([]);
-      setSettledExpenseBatch(null);
-    }
-  } catch (error) {
-    console.error(
-      "Failed to load Vectra data:",
-      error
-    );
-  }
-
-  setStorageLoaded(true);
-}, []);
-
-useEffect(() => {
-  if (!storageLoaded) {
-    return;
-  }
-
-  setGroupDataLoaded(false);
-
-  try {
-    const storage = loadGroupStorage();
-
-    const groupData =
-      storage[activeGroupId.toLowerCase()] ??
-      storage[activeGroupId];
-
-    if (groupData) {
-      setMembers(
-        groupData.members.length > 0
-          ? groupData.members
-          : INITIAL_MEMBERS
-      );
-
-      setExpenses(
-        Array.isArray(groupData.expenses)
-          ? groupData.expenses
-          : []
-      );
-
-      setSettledExpenseBatch(
-        groupData.settledExpenseBatch
-      );
-    } else {
-      /*
-      * New group starts with a clean local state.
-      * The connected wallet becomes the coordinator.
-      */
-      setMembers(
-        address
-          ? [
-              {
-                name: "Coordinator",
-                address,
-              },
-            ]
-          : []
-      );
-
-      setExpenses([]);
-      setSettledExpenseBatch(null);
-    }
-  } catch (error) {
-    console.error(
-      "Failed to load active group data:",
-      error
-    );
-
-    setMembers(INITIAL_MEMBERS);
-    setExpenses([]);
-    setSettledExpenseBatch(null);
-  } finally {
+    setMounted(true);
+    setStorageLoaded(true);
     setGroupDataLoaded(true);
-  }
-}, [
-  activeGroupId,
-  storageLoaded,
-]);
-
-  /*
- * Persist data for the active group only.
- */
-useEffect(() => {
-  if (
-    !storageLoaded ||
-    !groupDataLoaded
-  ) {
-    return;
-  }
-
-  try {
-    const storage =
-      loadGroupStorage();
-
-    storage[
-      activeGroupId.toLowerCase()
-    ] = {
-      name: activeGroupName,
-      members,
-      expenses,
-      settledExpenseBatch,
-    };
-
-    saveGroupStorage(
-      storage
-    );
-
-    localStorage.setItem(
-      "vectra-active-group-name",
-      activeGroupName
-    );
-
-    localStorage.setItem(
-      "vectra-active-group-id",
-      activeGroupId
-    );
-  } catch (error) {
-    console.error(
-      "Failed to save active group data:",
-      error
-    );
-  }
-}, [
-  members,
-  expenses,
-  settledExpenseBatch,
-  activeGroupId,
-  activeGroupName,
-  storageLoaded,
-  groupDataLoaded,
-]);
+  }, []);
 
   const {
     address,
@@ -672,6 +472,267 @@ useEffect(() => {
       cancelled = true;
     };
   }, [address]);
+
+  /*
+   * Fetch the connected wallet's groups from the
+   * backend whenever the wallet address changes.
+   */
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchGroups = async () => {
+      if (!address) {
+        setIsBackendGroupsLoading(false);
+        return;
+      }
+
+      setIsBackendGroupsLoading(true);
+      setBackendGroupsError(null);
+
+      try {
+        const data = await apiFetch<{
+          groups: BackendGroup[];
+        }>(
+          `/groups?walletAddress=${address}`
+        );
+
+        if (!cancelled) {
+          setBackendGroups(
+            data.groups
+          );
+        }
+      } catch (error) {
+        console.error(
+          "Failed to fetch groups from backend:",
+          error
+        );
+
+        if (!cancelled) {
+          setBackendGroupsError(
+            error instanceof Error
+              ? error.message
+              : "Failed to load groups"
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setIsBackendGroupsLoading(
+            false
+          );
+        }
+      }
+    };
+
+    fetchGroups();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [address]);
+
+  /*
+   * Validate activeGroupId against backendGroups.
+   *
+   * When backendGroups finishes loading, ensure the
+   * active group is one the connected wallet has
+   * access to. If an active settlement is in progress,
+   * prioritize keeping the active group locked to that
+   * settlement's group if the connected wallet belongs to it.
+   *
+   * NOTE: An intermediate wallet switch must NEVER wipe
+   * active settlement state (signature, snapshot, approvals).
+   * Legitimate cleanup is handled by explicit group switching,
+   * disconnect, or settlement completion/failure.
+   */
+  useEffect(() => {
+    if (isBackendGroupsLoading || !address) {
+      return;
+    }
+
+    if (backendGroups.length === 0) {
+      setActiveGroupId(null);
+      setActiveGroupName("");
+      setMembers([]);
+      setExpenses([]);
+      return;
+    }
+
+    // If an active settlement is in progress, lock to its group if the wallet is a member
+    if (activeSettlementSnapshot) {
+      const snapshotGroup = backendGroups.find(
+        (group) => group.id === activeSettlementSnapshot.groupId
+      );
+      if (snapshotGroup) {
+        if (
+          !activeGroupId ||
+          activeGroupId.toLowerCase() !==
+            snapshotGroup.blockchainGroupId.toLowerCase()
+        ) {
+          setActiveGroupId(
+            snapshotGroup.blockchainGroupId as `0x${string}`
+          );
+          setActiveGroupName(snapshotGroup.name);
+        }
+        return;
+      }
+    }
+
+    const currentIsValid =
+      activeGroupId &&
+      backendGroups.some(
+        (group) =>
+          group.blockchainGroupId.toLowerCase() ===
+          activeGroupId.toLowerCase()
+      );
+
+    if (!currentIsValid) {
+      const firstGroup =
+        backendGroups[0];
+
+      setActiveGroupId(
+        firstGroup.blockchainGroupId as `0x${string}`
+      );
+
+      setActiveGroupName(
+        firstGroup.name
+      );
+    }
+  }, [backendGroups, isBackendGroupsLoading, address, activeGroupId, activeSettlementSnapshot]);
+
+  /*
+   * Load active group memberships from the backend.
+   *
+   * Backend memberships are authoritative for
+   * group members, roles, and count.
+   */
+  const loadActiveGroupMembers = async (
+    backendId: string
+  ) => {
+    if (!address) {
+      return;
+    }
+
+    try {
+      const data = await apiFetch<{
+        group: {
+          id: string;
+          blockchainGroupId: string;
+          name: string;
+          coordinatorAddress: string;
+          inviteCode: string;
+          status: string;
+          memberships: {
+            id: string;
+            groupId: string;
+            walletAddress: string;
+            role: "COORDINATOR" | "MEMBER";
+          }[];
+        };
+      }>(
+        `/groups/${backendId}?walletAddress=${address}`
+      );
+
+      if (data?.group?.memberships) {
+        setMembers(
+          data.group.memberships.map(
+            (m) => ({
+              name:
+                m.role === "COORDINATOR"
+                  ? "Coordinator"
+                  : "Member",
+              address: m.walletAddress,
+              role: m.role,
+            })
+          )
+        );
+      }
+    } catch (error) {
+      console.error(
+        "Failed to load group memberships:",
+        error
+      );
+    }
+  };
+
+  /*
+   * Load active group expenses from the backend.
+   *
+   * Backend PostgreSQL is authoritative for expenses
+   * and settled states.
+   */
+  const loadGroupExpenses = async (
+    backendId: string
+  ) => {
+    if (!address) {
+      return;
+    }
+
+    setIsExpensesLoading(true);
+    setExpensesError(null);
+
+    try {
+      const data = await apiFetch<{
+        expenses: Expense[];
+      }>(
+        `/groups/${backendId}/expenses?walletAddress=${address}`
+      );
+
+      if (data?.expenses) {
+        setExpenses(data.expenses);
+      }
+    } catch (error) {
+      console.error(
+        "Failed to load group expenses:",
+        error
+      );
+      setExpensesError(
+        error instanceof Error
+          ? error.message
+          : "Failed to load expenses"
+      );
+    } finally {
+      setIsExpensesLoading(false);
+    }
+  };
+
+  /*
+   * Sync active group memberships and expenses whenever
+   * activeGroupId, backendGroups, or address changes.
+   */
+  useEffect(() => {
+    if (!activeGroupId || !address || isBackendGroupsLoading) {
+      return;
+    }
+
+    const activeGroup = backendGroups.find(
+      (group) =>
+        group.blockchainGroupId.toLowerCase() ===
+        activeGroupId.toLowerCase()
+    );
+
+    if (!activeGroup) {
+      return;
+    }
+
+    if (
+      activeGroup.memberships &&
+      activeGroup.memberships.length > 0
+    ) {
+      setMembers(
+        activeGroup.memberships.map((m) => ({
+          name:
+            m.role === "COORDINATOR"
+              ? "Coordinator"
+              : "Member",
+          address: m.walletAddress,
+          role: m.role,
+        }))
+      );
+    }
+
+    loadActiveGroupMembers(activeGroup.id);
+    loadGroupExpenses(activeGroup.id);
+  }, [activeGroupId, backendGroups, address]);
 
   /*
    * Resolve ENS names for group members.
@@ -788,6 +849,7 @@ useEffect(() => {
 
   const {
     signTypedData,
+    signTypedDataAsync,
     data: signedSettlement,
     isPending:
       isSigningSettlement,
@@ -802,17 +864,26 @@ useEffect(() => {
     writeContract,
     data: createGroupTxHash,
     isPending: isCreatingGroup,
+    reset: resetCreateGroup,
   } = useWriteContract();
 
   const {
     writeContract: approveUSDC,
+    writeContractAsync: approveUSDCAsync,
     data: approveTxHash,
     isPending: isApprovingUSDC,
     reset: resetApproveUSDC,
   } = useWriteContract();
 
   const {
+    isSuccess: isApproveConfirmed,
+  } = useWaitForTransactionReceipt({
+    hash: approveTxHash,
+  });
+
+  const {
     writeContract: executeSettlement,
+    writeContractAsync: executeSettlementAsync,
     data: settlementTxHash,
     isPending:
       isExecutingSettlement,
@@ -832,10 +903,13 @@ useEffect(() => {
     );
 
   const {
+    data: settlementReceipt,
     isLoading:
       isSettlementConfirming,
     isSuccess:
       isSettlementConfirmed,
+    isError:
+      isSettlementReceiptError,
   } =
     useWaitForTransactionReceipt(
       {
@@ -844,35 +918,139 @@ useEffect(() => {
     );
 
   /*
-   * When settlement confirms, permanently mark the
-   * current expense batch as settled in localStorage.
-   *
-   * We do NOT delete the expenses.
+   * Update settlement record to SUBMITTED when transaction hash is available.
+   */
+  useEffect(() => {
+    if (!settlementTxHash || !activeSettlementSnapshot || !address) {
+      return;
+    }
+
+    const markSubmitted = async () => {
+      try {
+        await apiFetch(
+          `/groups/${activeSettlementSnapshot.groupId}/settlements/${activeSettlementSnapshot.settlementId}`,
+          {
+            method: "PATCH",
+            body: JSON.stringify({
+              walletAddress: address,
+              status: "SUBMITTED",
+              transactionHash: settlementTxHash,
+            }),
+          }
+        );
+      } catch (err) {
+        console.error("Failed to update settlement to SUBMITTED:", err);
+      }
+    };
+
+    markSubmitted();
+  }, [settlementTxHash, activeSettlementSnapshot, address]);
+
+  /*
+   * When settlement confirms on Arc, mark participating expenseIds
+   * as settled in PostgreSQL and refresh expenses.
    */
   useEffect(() => {
     if (!isSettlementConfirmed) {
       return;
     }
 
-    if (!pendingSettlementBatch) {
+    if (!activeSettlementSnapshot || !address) {
       return;
     }
 
-    setSettledExpenseBatch(
-      pendingSettlementBatch
-    );
+    const completeSettlement = async () => {
+      const snapshot = activeSettlementSnapshot;
+      try {
+        if (settlementReceipt && settlementReceipt.status === "reverted") {
+          console.error("Settlement transaction reverted on Arc");
+          setSettlementExecutionError("Settlement transaction reverted on Arc.");
+          await apiFetch(
+            `/groups/${snapshot.groupId}/settlements/${snapshot.settlementId}`,
+            {
+              method: "PATCH",
+              body: JSON.stringify({
+                walletAddress: address,
+                status: "FAILED",
+              }),
+            }
+          );
+        } else {
+          await apiFetch(
+            `/groups/${snapshot.groupId}/settlements/${snapshot.settlementId}`,
+            {
+              method: "PATCH",
+              body: JSON.stringify({
+                walletAddress: address,
+                status: "COMPLETED",
+                transactionHash: settlementTxHash,
+                expenseIds: snapshot.expenseIds,
+              }),
+            }
+          );
 
-    setPendingSettlementBatch(null);
-    setSettlementSignature(null);
-    setSettlementDeadline(null);
+          await loadGroupExpenses(snapshot.groupId);
+        }
+      } catch (err) {
+        console.error("Failed to complete settlement in backend:", err);
+      } finally {
+        setActiveSettlementSnapshot(null);
+        setSettlementSignature(null);
+        setSettlementDeadline(null);
+        setConfirmedApprovals({});
+        resetApproveUSDC();
+        resetSettlement();
+      }
+    };
 
-    resetApproveUSDC();
-    resetSettlement();
-    setPendingSettlementBatch(null);
+    completeSettlement();
   }, [
     isSettlementConfirmed,
-    pendingSettlementBatch,
+    settlementReceipt,
+    activeSettlementSnapshot,
+    address,
+    settlementTxHash,
   ]);
+
+  /*
+   * If on-chain transaction receipt fails, mark settlement as FAILED.
+   */
+  useEffect(() => {
+    if (!isSettlementReceiptError) {
+      return;
+    }
+
+    if (!activeSettlementSnapshot || !address) {
+      return;
+    }
+
+    const failSettlement = async () => {
+      const snapshot = activeSettlementSnapshot;
+      try {
+        setSettlementExecutionError("Settlement transaction failed on Arc.");
+        await apiFetch(
+          `/groups/${snapshot.groupId}/settlements/${snapshot.settlementId}`,
+          {
+            method: "PATCH",
+            body: JSON.stringify({
+              walletAddress: address,
+              status: "FAILED",
+            }),
+          }
+        );
+      } catch (err) {
+        console.error("Failed to mark settlement as FAILED:", err);
+      } finally {
+        setActiveSettlementSnapshot(null);
+        setSettlementSignature(null);
+        setSettlementDeadline(null);
+        setConfirmedApprovals({});
+        resetSettlement();
+      }
+    };
+
+    failSettlement();
+  }, [isSettlementReceiptError, activeSettlementSnapshot, address]);
 
   /*
    * On-chain coordinator.
@@ -887,7 +1065,7 @@ useEffect(() => {
     abi: vectraTreasuryAbi,
     functionName:
       "coordinators",
-    args: [activeGroupId],
+    args: [activeGroupId ?? ("0x0000000000000000000000000000000000000000000000000000000000000000" as `0x${string}`)],
     chainId: arcTestnet.id,
   });
 
@@ -902,7 +1080,7 @@ useEffect(() => {
       VECTRA_TREASURY_ADDRESS,
     abi: vectraTreasuryAbi,
     functionName: "nonces",
-    args: [activeGroupId],
+    args: [activeGroupId ?? ("0x0000000000000000000000000000000000000000000000000000000000000000" as `0x${string}`)],
     chainId: arcTestnet.id,
   });
 
@@ -927,14 +1105,54 @@ useEffect(() => {
     chainId: arcTestnet.id,
   });
 
+  /*
+   * Current wallet USDC allowance for Vectra Treasury.
+   */
+  const {
+    data: usdcAllowance,
+    refetch: refetchAllowance,
+  } = useReadContract({
+    address:
+      "0x3600000000000000000000000000000000000000",
+    abi: usdcAbi,
+    functionName:
+      "allowance",
+    args: address
+      ? [address, VECTRA_TREASURY_ADDRESS]
+      : undefined,
+    chainId: arcTestnet.id,
+  });
+
+  useEffect(() => {
+    if (isApproveConfirmed) {
+      refetchAllowance();
+      if (approveTxHash && address) {
+        setConfirmedApprovals((prev) => ({
+          ...prev,
+          [address.toLowerCase()]: approveTxHash,
+        }));
+      }
+    }
+  }, [isApproveConfirmed, approveTxHash, address, refetchAllowance]);
+
   const isArcNetwork =
     chainId === arcTestnet.id;
 
+  const activeBackendGroup =
+    backendGroups.find(
+      (group) =>
+        group.blockchainGroupId.toLowerCase() ===
+        activeGroupId?.toLowerCase()
+    );
+
   const isCoordinator =
     Boolean(address) &&
-    Boolean(coordinator) &&
-    coordinator?.toLowerCase() ===
-      address?.toLowerCase();
+    ((Boolean(coordinator) &&
+      coordinator?.toLowerCase() ===
+        address?.toLowerCase()) ||
+      (Boolean(activeBackendGroup?.coordinatorAddress) &&
+        activeBackendGroup?.coordinatorAddress.toLowerCase() ===
+          address?.toLowerCase()));
 
   /*
    * Display an ENS name when available.
@@ -981,15 +1199,14 @@ useEffect(() => {
   /*
    * Settlement optimizer.
    *
-   * If the current expense batch has already been
-   * settled, return no pending settlements.
+   * Calculates settlements based strictly on unsettled expenses.
    */
   const calculateSettlements =
     (): Settlement[] => {
-      if (
-        settledExpenseBatch ===
-        currentExpenseBatch
-      ) {
+      const unsettledExpenses =
+        expenses.filter((expense) => !expense.settled);
+
+      if (unsettledExpenses.length === 0) {
         return [];
       }
 
@@ -1005,7 +1222,7 @@ useEffect(() => {
             member.address.toLowerCase()
         );
 
-      for (const expense of expenses) {
+      for (const expense of unsettledExpenses) {
         const amount =
           Number(
             expense.amount
@@ -1249,13 +1466,13 @@ useEffect(() => {
           topics[1]?.toLowerCase() ===
             activeGroupId.toLowerCase()
         ) {
-          const coordinator = `0x${topics[2]?.slice(-40)}`;
+          const coordinatorAddr = `0x${topics[2]?.slice(-40)}`;
 
           allActivity.push({
             type: "registration",
             txHash: log.transaction_hash,
             blockNumber: BigInt(log.block_number),
-            coordinator: coordinator as `0x${string}`,
+            coordinator: coordinatorAddr as `0x${string}`,
           });
         }
 
@@ -1360,6 +1577,18 @@ useEffect(() => {
     () => {
       disconnect();
 
+      /*
+       * Clear active group so the next wallet
+       * never inherits a stale group.
+       */
+      setActiveGroupId(null);
+      setActiveGroupName("");
+      setBackendGroups([]);
+
+      setMembers([]);
+      setExpenses([]);
+      setActiveSettlementSnapshot(null);
+
       setEnsName(null);
       setIsEnsLoading(false);
 
@@ -1369,9 +1598,9 @@ useEffect(() => {
       setSettlementDeadline(
         null
       );
+      setConfirmedApprovals({});
       resetApproveUSDC();
       resetSettlement();
-      setPendingSettlementBatch(null);
 
       setEnsInput("");
       setResolvedENSAddress(
@@ -1382,21 +1611,36 @@ useEffect(() => {
 
       setActivity([]);
       setActivityError(null);
+
+      resetCreateGroup();
+      setPendingGroupCreation(null);
+      setCreateGroupError(null);
+
+      setJoinCode("");
+      setJoinGroupError(null);
+      setJoinGroupSuccess(null);
+      setCopiedInviteCode(false);
+      setDeactivateError(null);
+      setDeactivateSuccess(null);
     };
 
-  const loadAvailableGroups = (): {
-  id: `0x${string}`;
-  name: string;
-}[] => {
-  const storage = loadGroupStorage();
 
-  return Object.entries(storage).map(
-    ([id, data]) => ({
-      id: id as `0x${string}`,
-      name: data.name,
-    })
-  );
-};
+
+  /*
+   * Generate a human-readable invite code.
+   *
+   * Format: VXR-XXXXX (uppercase alphanumeric).
+   */
+  const generateInviteCode = (): string => {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    let code = "VXR-";
+
+    for (let i = 0; i < 5; i++) {
+      code += chars[Math.floor(Math.random() * chars.length)];
+    }
+
+    return code;
+  };
 
   const handleCreateGroup = () => {
     if (
@@ -1406,20 +1650,6 @@ useEffect(() => {
     ) {
       return;
     }
-  
-  const loadAvailableGroups = (): {
-  id: `0x${string}`;
-  name: string;
-}[] => {
-  const storage = loadGroupStorage();
-
-  return Object.entries(storage).map(
-    ([id, data]) => ({
-      id: id as `0x${string}`,
-      name: data.name,
-    })
-  );
-};
 
     const trimmedGroupName =
       groupName.trim();
@@ -1435,73 +1665,35 @@ useEffect(() => {
         )
       );
 
-    /*
-    * Create a completely independent
-    * local data bucket for the new group.
-    */
-    try {
-      const storage =
-        loadGroupStorage();
-
-      storage[
-        generatedGroupId.toLowerCase()
-      ] = {
-        name: trimmedGroupName,
-        members: [
-          {
-            name: "Coordinator",
-            address,
-          },
-        ],
-        expenses: [],
-        settledExpenseBatch: null,
-      };
-
-      saveGroupStorage(storage);
-    } catch (error) {
-      console.error(
-        "Failed to initialize new group:",
-        error
-      );
-
-      return;
-    }
+    const inviteCode =
+      generateInviteCode();
 
     /*
-    * Switch the UI to the newly created group.
-    */
-    setActiveGroupName(
-      trimmedGroupName
-    );
+     * Store pending creation metadata so the
+     * on-chain confirmation useEffect can POST
+     * to the backend.
+     */
+    setPendingGroupCreation({
+      name: trimmedGroupName,
+      blockchainGroupId: generatedGroupId,
+      inviteCode,
+    });
 
-    setActiveGroupId(
-      generatedGroupId
-    );
-
-    setMembers([
-      {
-        name: "Coordinator",
-        address,
-      },
-    ]);
-
-    setExpenses([]);
-
-    setSettledExpenseBatch(
-      null
-    );
-
-    setSettlementSignature(
-      null
-    );
-
-    setSettlementDeadline(
-      null
-    );
+    setCreateGroupError(null);
 
     /*
-    * Register the group on Arc.
-    */
+     * Reset previous creation state so
+     * useWaitForTransactionReceipt starts
+     * fresh for this new transaction.
+     */
+    resetCreateGroup();
+
+    /*
+     * Register the group on Arc.
+     *
+     * The backend POST happens only after
+     * the on-chain transaction confirms.
+     */
     writeContract({
       address:
         VECTRA_TREASURY_ADDRESS,
@@ -1517,42 +1709,187 @@ useEffect(() => {
     });
   };
 
+  /*
+   * After on-chain group registration confirms,
+   * create the group in the backend and refresh
+   * the group list.
+   */
+  useEffect(() => {
+    if (
+      !isGroupCreatedOnChain ||
+      !pendingGroupCreation ||
+      !address
+    ) {
+      return;
+    }
+
+    const registerBackend =
+      async () => {
+        setIsCreatingGroupBackend(true);
+        setCreateGroupError(null);
+
+        try {
+          const res = await apiFetch<{
+            group: BackendGroup;
+          }>("/groups", {
+            method: "POST",
+            body: JSON.stringify({
+              name:
+                pendingGroupCreation.name,
+              blockchainGroupId:
+                pendingGroupCreation.blockchainGroupId,
+              walletAddress: address,
+              inviteCode:
+                pendingGroupCreation.inviteCode,
+            }),
+          });
+
+          /*
+           * Refresh the group list so the new
+           * group appears in "Your Groups".
+           */
+          try {
+            const data =
+              await apiFetch<{
+                groups: BackendGroup[];
+              }>(
+                `/groups?walletAddress=${address}`
+              );
+
+            setBackendGroups(
+              data.groups
+            );
+          } catch (refreshError) {
+            console.error(
+              "Failed to refresh groups:",
+              refreshError
+            );
+          }
+
+          /*
+           * Switch the UI to the newly
+           * created group.
+           */
+          setActiveGroupName(
+            pendingGroupCreation.name
+          );
+
+          setActiveGroupId(
+            pendingGroupCreation.blockchainGroupId
+          );
+
+          if (
+            res?.group?.memberships &&
+            res.group.memberships.length > 0
+          ) {
+            setMembers(
+              res.group.memberships.map((m) => ({
+                name: "Coordinator",
+                address: m.walletAddress,
+                role: m.role,
+              }))
+            );
+          } else {
+            setMembers([
+              {
+                name: "Coordinator",
+                address,
+                role: "COORDINATOR",
+              },
+            ]);
+          }
+
+          setExpenses([]);
+          setActiveSettlementSnapshot(null);
+          setSettlementSignature(null);
+          setSettlementDeadline(null);
+
+          setGroupName("");
+        } catch (error) {
+          console.error(
+            "Failed to create group in backend:",
+            error
+          );
+
+          setCreateGroupError(
+            error instanceof Error
+              ? error.message
+              : "Failed to save group to backend"
+          );
+        } finally {
+          setIsCreatingGroupBackend(
+            false
+          );
+
+          setPendingGroupCreation(
+            null
+          );
+        }
+      };
+
+    registerBackend();
+  }, [isGroupCreatedOnChain]);
+
   const handleSwitchGroup = (
   groupId: `0x${string}`,
   name: string
 ) => {
+  /*
+   * Only allow switching to groups the
+   * connected wallet is a member of.
+   */
+  const isAuthorized =
+    backendGroups.some(
+      (group) =>
+        group.blockchainGroupId.toLowerCase() ===
+        groupId.toLowerCase()
+    );
+
+  if (!isAuthorized) {
+    console.error(
+      "Unauthorized group switch:",
+      groupId
+    );
+    return;
+  }
+
   const normalizedGroupId =
     groupId.toLowerCase();
 
   try {
-    const storage =
-      loadGroupStorage();
-
-    const groupData =
-      storage[normalizedGroupId];
-
-    if (!groupData) {
-      console.error(
-        "Group data not found:",
-        groupId
-      );
-      return;
-    }
+    const targetGroup = backendGroups.find(
+      (group) =>
+        group.blockchainGroupId.toLowerCase() ===
+        normalizedGroupId
+    );
 
     setActiveGroupId(groupId);
     setActiveGroupName(name);
 
-    setMembers(
-      groupData.members
-    );
+    if (
+      targetGroup?.memberships &&
+      targetGroup.memberships.length > 0
+    ) {
+      setMembers(
+        targetGroup.memberships.map((m) => ({
+          name:
+            m.role === "COORDINATOR"
+              ? "Coordinator"
+              : "Member",
+          address: m.walletAddress,
+          role: m.role,
+        }))
+      );
+      loadActiveGroupMembers(targetGroup.id);
+    } else {
+      setMembers([]);
+    }
 
-    setExpenses(
-      groupData.expenses
-    );
-
-    setSettledExpenseBatch(
-      groupData.settledExpenseBatch
-    );
+    if (targetGroup) {
+      loadGroupExpenses(targetGroup.id);
+    } else {
+      setExpenses([]);
+    }
 
     /*
      * A new group switch means any previous
@@ -1560,7 +1897,8 @@ useEffect(() => {
      */
     setSettlementSignature(null);
     setSettlementDeadline(null);
-    setPendingSettlementBatch(null);
+    setActiveSettlementSnapshot(null);
+    setConfirmedApprovals({});
   } catch (error) {
     console.error(
       "Failed to switch group:",
@@ -1569,121 +1907,343 @@ useEffect(() => {
   }
 };
 
-  const handleAddExpense =
-    () => {
-      if (
-        !expenseDescription.trim()
-      ) {
-        return;
-      }
+  /*
+   * Join an existing group via invite code.
+   *
+   * Calls POST /groups/join with inviteCode and walletAddress.
+   */
+  const handleJoinGroup = async () => {
+    if (!address || !isConnected) {
+      return;
+    }
 
-      if (
-        !expenseAmount.trim()
-      ) {
-        return;
-      }
+    const cleanCode = joinCode.trim().toUpperCase();
+    if (!cleanCode) {
+      setJoinGroupError("Please enter an invite code.");
+      return;
+    }
 
-      if (!expensePaidBy) {
-        return;
-      }
+    setIsJoiningGroup(true);
+    setJoinGroupError(null);
+    setJoinGroupSuccess(null);
 
-      const amount =
-        Number(
-          expenseAmount
-        );
+    try {
+      const res = await apiFetch<{
+        message: string;
+        group: {
+          id: string;
+          blockchainGroupId: string;
+          name: string;
+          coordinatorAddress: string;
+          status: string;
+        };
+        membership: {
+          id: string;
+          groupId: string;
+          walletAddress: string;
+          role: "COORDINATOR" | "MEMBER";
+        };
+      }>("/groups/join", {
+        method: "POST",
+        body: JSON.stringify({
+          inviteCode: cleanCode,
+          code: cleanCode,
+          walletAddress: address,
+        }),
+      });
 
-      if (
-        !Number.isFinite(
-          amount
-        ) ||
-        amount <= 0
-      ) {
-        return;
-      }
+      /*
+       * 1. Refresh backendGroups
+       */
+      const groupsData = await apiFetch<{
+        groups: BackendGroup[];
+      }>(`/groups?walletAddress=${address}`);
+      setBackendGroups(groupsData.groups);
 
-      setExpenses(
-        (current) => [
-          ...current,
-          {
-            description:
-              expenseDescription.trim(),
-            amount:
-              amount.toFixed(
-                2
-              ),
-            paidBy:
-              expensePaidBy,
-            groupId:
-              activeGroupId,
-          },
-        ]
-      );
-
-      setExpenseDescription(
-        ""
-      );
-
-      setExpenseAmount(
-        ""
-      );
-
-      setExpensePaidBy(
-        ""
-      );
-
-      setSettlementSignature(
-        null
-      );
-
-      setSettlementDeadline(
-        null
+      /*
+       * 2. Find newly joined group
+       */
+      const joinedGroup = groupsData.groups.find(
+        (g) =>
+          g.id === res.group.id ||
+          g.blockchainGroupId.toLowerCase() ===
+            res.group.blockchainGroupId.toLowerCase()
       );
 
       /*
-       * A changed expense set represents a new settlement.
+       * 3. Make it the active group
        */
-      setSettledExpenseBatch(
-        null
+      const targetGroupId = (joinedGroup?.blockchainGroupId ??
+        res.group.blockchainGroupId) as `0x${string}`;
+      const targetGroupName =
+        joinedGroup?.name ?? res.group.name;
+
+      setActiveGroupId(targetGroupId);
+      setActiveGroupName(targetGroupName);
+
+      /*
+       * 4. Load backend memberships
+       */
+      if (joinedGroup?.memberships) {
+        setMembers(
+          joinedGroup.memberships.map((m) => ({
+            name:
+              m.role === "COORDINATOR"
+                ? "Coordinator"
+                : "Member",
+            address: m.walletAddress,
+            role: m.role,
+          }))
+        );
+      }
+      await loadActiveGroupMembers(res.group.id);
+
+      /*
+       * 5. Show success message
+       */
+      setJoinGroupSuccess(
+        `Successfully joined "${res.group.name}"!`
       );
-    };
 
-  const handleDeleteExpense =
-    (
-      index: number
-    ) => {
-      const expense =
-        expenses[index];
+      /*
+       * 6. Clear join input
+       */
+      setJoinCode("");
+    } catch (err) {
+      console.error("Failed to join group:", err);
+      setJoinGroupError(
+        err instanceof Error
+          ? err.message
+          : "Failed to join group"
+      );
+    } finally {
+      setIsJoiningGroup(false);
+    }
+  };
 
-      if (!expense) {
-        return;
+  /*
+   * Logically deactivate group (coordinator-only).
+   *
+   * Calls PATCH /groups/:groupId/deactivate.
+   * Does not modify blockchain or physically delete records.
+   */
+  const handleDeactivateGroup = async () => {
+    if (!address || !isConnected || !activeGroupId) {
+      return;
+    }
+
+    const activeGroup = backendGroups.find(
+      (g) =>
+        g.blockchainGroupId.toLowerCase() ===
+        activeGroupId.toLowerCase()
+    );
+
+    if (!activeGroup) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "Deactivate this group? Members will no longer see it in their active groups. Existing history will be preserved."
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setIsDeactivatingGroup(true);
+    setDeactivateError(null);
+    setDeactivateSuccess(null);
+
+    try {
+      await apiFetch<{
+        message: string;
+        group: BackendGroup;
+      }>(`/groups/${activeGroup.id}/deactivate`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          walletAddress: address,
+        }),
+      });
+
+      /*
+       * 1. Refresh backend groups
+       */
+      const data = await apiFetch<{
+        groups: BackendGroup[];
+      }>(`/groups?walletAddress=${address}`);
+
+      setBackendGroups(data.groups);
+
+      /*
+       * 2. Auto-select next group or clear
+       */
+      if (data.groups.length > 0) {
+        const nextGroup = data.groups[0];
+        setActiveGroupId(
+          nextGroup.blockchainGroupId as `0x${string}`
+        );
+        setActiveGroupName(nextGroup.name);
+        setMembers(
+          nextGroup.memberships.map((m) => ({
+            name:
+              m.role === "COORDINATOR"
+                ? "Coordinator"
+                : "Member",
+            address: m.walletAddress,
+            role: m.role,
+          }))
+        );
+      } else {
+        setActiveGroupId(null);
+        setActiveGroupName("");
+        setMembers([]);
+        setExpenses([]);
+        setActiveSettlementSnapshot(null);
+        setSettlementSignature(null);
+        setSettlementDeadline(null);
       }
 
-      if (
-        window.confirm(
-          `Delete expense "${expense.description}"?`
-        )
-      ) {
-        setExpenses(
-          (current) =>
-            current.filter(
-              (_, i) =>
-                i !== index
-            )
-        );
+      setDeactivateSuccess(
+        "Group deactivated successfully."
+      );
+    } catch (err) {
+      console.error("Failed to deactivate group:", err);
+      setDeactivateError(
+        err instanceof Error
+          ? err.message
+          : "Failed to deactivate group"
+      );
+    } finally {
+      setIsDeactivatingGroup(false);
+    }
+  };
 
-        setSettlementSignature(
-          null
-        );
+  const handleAddExpense = async () => {
+    if (!activeGroupId || !address) {
+      return;
+    }
 
-        setSettlementDeadline(
-          null
-        );
+    const activeBackendGroup = backendGroups.find(
+      (group) =>
+        group.blockchainGroupId.toLowerCase() ===
+        activeGroupId.toLowerCase()
+    );
 
-        setSettledExpenseBatch(
-          null
-        );
+    if (!activeBackendGroup) {
+      return;
+    }
+
+    if (!expenseDescription.trim()) {
+      return;
+    }
+
+    if (!expenseAmount.trim()) {
+      return;
+    }
+
+    if (!expensePaidBy) {
+      return;
+    }
+
+    const amount = Number(expenseAmount);
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return;
+    }
+
+    setIsAddingExpense(true);
+    setExpensesError(null);
+
+    try {
+      const data = await apiFetch<{
+        expense: Expense;
+      }>(`/groups/${activeBackendGroup.id}/expenses`, {
+        method: "POST",
+        body: JSON.stringify({
+          description: expenseDescription.trim(),
+          amount: amount.toFixed(2),
+          paidBy: expensePaidBy,
+          walletAddress: address,
+        }),
+      });
+
+      if (data?.expense) {
+        setExpenses((current) => [data.expense, ...current]);
+        setExpenseDescription("");
+        setExpenseAmount("");
+        setExpensePaidBy("");
+        setSettlementSignature(null);
+        setSettlementDeadline(null);
+        setActiveSettlementSnapshot(null);
       }
-    };
+    } catch (err) {
+      console.error("Failed to add expense:", err);
+      setExpensesError(
+        err instanceof Error ? err.message : "Failed to add expense"
+      );
+    } finally {
+      setIsAddingExpense(false);
+    }
+  };
+
+  const handleDeleteExpense = async (expense: Expense) => {
+    if (!activeGroupId || !address) {
+      return;
+    }
+
+    const activeBackendGroup = backendGroups.find(
+      (group) =>
+        group.blockchainGroupId.toLowerCase() ===
+        activeGroupId.toLowerCase()
+    );
+
+    if (!activeBackendGroup) {
+      return;
+    }
+
+    if (expense.settled) {
+      window.alert("Cannot delete an already settled expense.");
+      return;
+    }
+
+    if (
+      !window.confirm(
+        `Delete expense "${expense.description}"?`
+      )
+    ) {
+      return;
+    }
+
+    setIsDeletingExpenseId(expense.id);
+    setExpensesError(null);
+
+    try {
+      await apiFetch(
+        `/groups/${activeBackendGroup.id}/expenses/${expense.id}`,
+        {
+          method: "DELETE",
+          body: JSON.stringify({
+            walletAddress: address,
+          }),
+        }
+      );
+
+      setExpenses((current) =>
+        current.filter((item) => item.id !== expense.id)
+      );
+
+      setSettlementSignature(null);
+      setSettlementDeadline(null);
+      setActiveSettlementSnapshot(null);
+    } catch (err) {
+      console.error("Failed to delete expense:", err);
+      window.alert(
+        err instanceof Error ? err.message : "Failed to delete expense"
+      );
+    } finally {
+      setIsDeletingExpenseId(null);
+    }
+  };
 
   const handleDeleteMember =
     (
@@ -1754,7 +2314,7 @@ useEffect(() => {
         null
       );
 
-      setSettledExpenseBatch(
+      setActiveSettlementSnapshot(
         null
       );
 
@@ -1769,7 +2329,7 @@ useEffect(() => {
     };
 
   const handleApproveSettlement =
-    () => {
+    async () => {
       if (
         !address ||
         !isConnected ||
@@ -1817,23 +2377,34 @@ useEffect(() => {
           )
         );
 
-      approveUSDC({
-        address:
-          "0x3600000000000000000000000000000000000000",
-        abi: usdcAbi,
-        functionName:
-          "approve",
-        args: [
-          VECTRA_TREASURY_ADDRESS,
-          amountInUSDC,
-        ],
-        chainId:
-          arcTestnet.id,
-      });
+      try {
+        const hash = await approveUSDCAsync({
+          address:
+            "0x3600000000000000000000000000000000000000",
+          abi: usdcAbi,
+          functionName:
+            "approve",
+          args: [
+            VECTRA_TREASURY_ADDRESS,
+            amountInUSDC,
+          ],
+          chainId:
+            arcTestnet.id,
+        });
+
+        if (hash) {
+          setConfirmedApprovals((prev) => ({
+            ...prev,
+            [address.toLowerCase()]: hash,
+          }));
+        }
+      } catch (err) {
+        console.error("USDC approval failed or was rejected:", err);
+      }
     };
 
   const handleSignSettlement =
-    () => {
+    async () => {
       if (
         !address ||
         !isConnected ||
@@ -1884,23 +2455,71 @@ useEffect(() => {
 
       resetApproveUSDC();
       resetSettlement();
-      setPendingSettlementBatch(null);
 
-      signTypedData({
-        domain:
-          EIP712_DOMAIN,
-        types:
-          SETTLEMENT_TYPES,
-        primaryType:
-          "Settlement",
-        message: {
-          groupId:
-            activeGroupId,
-          nonce,
-          deadline,
-          transfersHash,
-        },
-      });
+      const participatingExpenses = expenses.filter((e) => !e.settled);
+      const participatingExpenseIds = participatingExpenses.map((e) => e.id);
+      const totalAmount = settlements
+        .reduce((sum, s) => sum + s.amount, 0)
+        .toFixed(6);
+
+      const targetGroup =
+        activeBackendGroup ??
+        backendGroups.find(
+          (group) =>
+            group.blockchainGroupId.toLowerCase() ===
+            activeGroupId?.toLowerCase()
+        );
+
+      if (targetGroup) {
+        let createdSettlementId = "";
+        try {
+          const createRes = await apiFetch<{
+            settlement: { id: string; nonce: string; status: string };
+          }>(`/groups/${targetGroup.id}/settlements`, {
+            method: "POST",
+            body: JSON.stringify({
+              walletAddress: address,
+              nonce: nonce.toString(),
+              totalAmount,
+            }),
+          });
+          createdSettlementId = createRes.settlement.id;
+        } catch (err) {
+          console.error("Failed to initialize backend settlement on sign:", err);
+        }
+
+        setActiveSettlementSnapshot({
+          settlementId: createdSettlementId,
+          groupId: targetGroup.id,
+          nonce: nonce.toString(),
+          totalAmount,
+          expenseIds: participatingExpenseIds,
+        });
+      }
+
+      try {
+        const signature = await signTypedDataAsync({
+          domain:
+            EIP712_DOMAIN,
+          types:
+            SETTLEMENT_TYPES,
+          primaryType:
+            "Settlement",
+          message: {
+            groupId:
+              activeGroupId!,
+            nonce,
+            deadline,
+            transfersHash,
+          },
+        });
+
+        if (signature) {
+          setSettlementSignature(signature);
+        }
+      } catch (signErr) {
+        console.error("Failed to sign settlement intent:", signErr);
+      }
     };
 
   useEffect(() => {
@@ -1914,12 +2533,22 @@ useEffect(() => {
   }, [signedSettlement]);
 
   const handleExecuteSettlement =
-    () => {
+    async () => {
       if (
         !address ||
         !isConnected ||
         !isArcNetwork
       ) {
+        return;
+      }
+
+      const activeBackendGroup = backendGroups.find(
+        (group) =>
+          group.blockchainGroupId.toLowerCase() ===
+          activeGroupId?.toLowerCase()
+      );
+
+      if (!activeBackendGroup) {
         return;
       }
 
@@ -1944,9 +2573,59 @@ useEffect(() => {
         return;
       }
 
+      const participatingExpenseIds =
+        activeSettlementSnapshot?.expenseIds &&
+        activeSettlementSnapshot.expenseIds.length > 0
+          ? activeSettlementSnapshot.expenseIds
+          : expenses.filter((e) => !e.settled).map((e) => e.id);
+
+      if (participatingExpenseIds.length === 0) {
+        return;
+      }
+
+      const totalAmount = settlements
+        .reduce((sum, s) => sum + s.amount, 0)
+        .toFixed(6);
+
+      setSettlementExecutionError(null);
+
+      let createdSettlementId = activeSettlementSnapshot?.settlementId;
+
+      if (!createdSettlementId) {
+        try {
+          const createRes = await apiFetch<{
+            settlement: { id: string; nonce: string; status: string };
+          }>(`/groups/${activeBackendGroup.id}/settlements`, {
+            method: "POST",
+            body: JSON.stringify({
+              walletAddress: address,
+              nonce: groupNonce.toString(),
+              totalAmount,
+            }),
+          });
+          createdSettlementId = createRes.settlement.id;
+        } catch (err) {
+          console.error("Failed to initialize backend settlement record:", err);
+          setSettlementExecutionError(
+            err instanceof Error ? err.message : "Failed to initialize settlement"
+          );
+          return;
+        }
+      }
+
+      const snapshot: ActiveSettlementSnapshot = {
+        settlementId: createdSettlementId,
+        groupId: activeBackendGroup.id,
+        nonce: groupNonce.toString(),
+        totalAmount,
+        expenseIds: participatingExpenseIds,
+      };
+
+      setActiveSettlementSnapshot(snapshot);
+
       const intent = {
         groupId:
-          activeGroupId,
+          activeGroupId!,
 
         nonce:
           groupNonce,
@@ -1978,23 +2657,109 @@ useEffect(() => {
           ),
       };
 
-      setPendingSettlementBatch(currentExpenseBatch);
+      try {
+        const hash = await executeSettlementAsync({
+          address:
+            VECTRA_TREASURY_ADDRESS,
+          abi:
+            vectraTreasuryAbi,
+          functionName:
+            "executeSettlementIntent",
+          args: [
+            intent,
+            settlementSignature,
+          ],
+          chainId:
+            arcTestnet.id,
+        });
 
-      executeSettlement({
-        address:
-          VECTRA_TREASURY_ADDRESS,
-        abi:
-          vectraTreasuryAbi,
-        functionName:
-          "executeSettlementIntent",
-        args: [
-          intent,
-          settlementSignature,
-        ],
-        chainId:
-          arcTestnet.id,
-      });
+        if (hash) {
+          await apiFetch(
+            `/groups/${snapshot.groupId}/settlements/${snapshot.settlementId}`,
+            {
+              method: "PATCH",
+              body: JSON.stringify({
+                walletAddress: address,
+                status: "SUBMITTED",
+                transactionHash: hash,
+              }),
+            }
+          ).catch((e) => console.error("Failed to patch SUBMITTED settlement:", e));
+        }
+      } catch (execErr) {
+        console.error("Settlement transaction submission failed or was rejected:", execErr);
+        setSettlementExecutionError(
+          execErr instanceof Error ? execErr.message : "Settlement execution failed"
+        );
+        await apiFetch(
+          `/groups/${snapshot.groupId}/settlements/${snapshot.settlementId}`,
+          {
+            method: "PATCH",
+            body: JSON.stringify({
+              walletAddress: address,
+              status: "FAILED",
+            }),
+          }
+        ).catch((e) => console.error("Failed to patch FAILED settlement:", e));
+        setActiveSettlementSnapshot(null);
+        resetSettlement();
+      }
     };
+
+  const currentWalletOutgoing = settlements
+    .filter((s) => s.from.toLowerCase() === address?.toLowerCase())
+    .reduce((total, s) => total + s.amount, 0);
+
+  const requiredAllowanceUSDC = BigInt(
+    Math.round(currentWalletOutgoing * 1_000_000)
+  );
+
+  const isConnectedWalletApproved = Boolean(
+    address &&
+      (confirmedApprovals[address.toLowerCase()] ||
+        (typeof usdcAllowance === "bigint" &&
+          requiredAllowanceUSDC > BigInt(0) &&
+          usdcAllowance >= requiredAllowanceUSDC))
+  );
+
+  const currentApprovalTx = address
+    ? confirmedApprovals[address.toLowerCase()] || approveTxHash
+    : undefined;
+
+  const debtors = settlements.filter((s) => s.amount > 0);
+  const debtorAddresses = Array.from(
+    new Set(debtors.map((s) => s.from.toLowerCase()))
+  );
+
+  const allRequiredApprovalsConfirmed =
+    debtorAddresses.length === 0 ||
+    debtorAddresses.every((debtor) => {
+      if (confirmedApprovals[debtor]) return true;
+      if (
+        address &&
+        debtor === address.toLowerCase() &&
+        typeof usdcAllowance === "bigint"
+      ) {
+        const debtorTotal = settlements
+          .filter((s) => s.from.toLowerCase() === debtor)
+          .reduce((sum, s) => sum + s.amount, 0);
+        return usdcAllowance >= BigInt(Math.round(debtorTotal * 1_000_000));
+      }
+      return false;
+    });
+
+  const isSignedIntentValid = Boolean(
+    settlementSignature &&
+      settlementDeadline &&
+      Number(settlementDeadline) * 1000 > Date.now()
+  );
+
+  const showStep3 = Boolean(
+    (isSignedIntentValid &&
+      activeSettlementSnapshot &&
+      allRequiredApprovalsConfirmed) ||
+      settlementTxHash
+  );
 
   const formatAddress =
     (
@@ -2151,24 +2916,28 @@ useEffect(() => {
       </h2>
 
       <p className="mt-1 text-sm text-slate-500">
-        Switch between your Vectra groups.
+        {isBackendGroupsLoading
+          ? "Loading groups..."
+          : backendGroupsError
+            ? backendGroupsError
+            : "Switch between your Vectra groups."}
       </p>
     </div>
 
     <div className="rounded-lg border border-cyan-500/20 bg-cyan-500/5 px-3 py-2 text-xs text-cyan-300">
-      {loadAvailableGroups().length}{" "}
-      {loadAvailableGroups().length === 1
+      {backendGroups.length}{" "}
+      {backendGroups.length === 1
         ? "Group"
         : "Groups"}
     </div>
   </div>
 
   <div className="mt-5 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-    {loadAvailableGroups().map(
+    {backendGroups.map(
       (group) => {
         const isActive =
-          group.id.toLowerCase() ===
-          activeGroupId.toLowerCase();
+          group.blockchainGroupId.toLowerCase() ===
+          (activeGroupId ?? "").toLowerCase();
 
         return (
           <button
@@ -2176,7 +2945,7 @@ useEffect(() => {
             type="button"
             onClick={() =>
               handleSwitchGroup(
-                group.id,
+                group.blockchainGroupId as `0x${string}`,
                 group.name
               )
             }
@@ -2205,7 +2974,7 @@ useEffect(() => {
             </div>
 
             <div className="mt-2 truncate text-xs text-slate-500">
-              {group.id}
+              {group.blockchainGroupId}
             </div>
           </button>
         );
@@ -2300,74 +3069,208 @@ useEffect(() => {
                 </h2>
 
                 <p className="mt-1 text-sm text-slate-500">
-                  {activeGroupName}
+                  {activeGroupName || "No active group"}
                 </p>
               </div>
 
-              <div className="rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-xs text-slate-400">
-                {formatAddress(
-                  activeGroupId
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 font-mono text-xs text-slate-400">
+                  {formatAddress(
+                    activeGroupId ?? undefined
+                  )}
+                </div>
+
+                {isCoordinator && activeGroupId && (
+                  <button
+                    type="button"
+                    onClick={handleDeactivateGroup}
+                    disabled={isDeactivatingGroup}
+                    className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-300 transition hover:bg-red-500/20 disabled:opacity-50"
+                  >
+                    {isDeactivatingGroup
+                      ? "Deactivating..."
+                      : "Delete Group"}
+                  </button>
                 )}
               </div>
             </div>
 
-            <div className="mt-6 grid gap-4 md:grid-cols-[1fr_auto]">
-              <input
-                value={
-                  groupName
-                }
-                onChange={(
-                  event
-                ) =>
-                  setGroupName(
-                    event.target.value
-                  )
-                }
-                placeholder="New group name"
-                className="rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm outline-none focus:border-cyan-400"
-              />
+            {deactivateError && (
+              <div className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300">
+                {deactivateError}
+              </div>
+            )}
 
-              <button
-                onClick={
-                  handleCreateGroup
-                }
-                disabled={
-                  isCreatingGroup ||
-                  !isConnected ||
-                  !isArcNetwork ||
-                  !groupName.trim()
-                }
-                className="rounded-xl bg-white px-5 py-3 text-sm font-semibold text-slate-950 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                {isCreatingGroup
-                  ? "Registering..."
-                  : "Create Group"}
-              </button>
+            {deactivateSuccess && (
+              <div className="mt-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 text-sm text-emerald-300">
+                {deactivateSuccess}
+              </div>
+            )}
+
+            {/* Invite code for active group */}
+            {activeBackendGroup && activeBackendGroup.inviteCode && (
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950 p-4">
+                <div>
+                  <div className="text-xs uppercase tracking-wide text-slate-500">
+                    Invite code
+                  </div>
+                  <div className="mt-1 font-mono text-base font-bold tracking-wider text-cyan-300">
+                    {activeBackendGroup.inviteCode}
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(
+                      activeBackendGroup.inviteCode
+                    );
+                    setCopiedInviteCode(true);
+                    setTimeout(
+                      () => setCopiedInviteCode(false),
+                      2000
+                    );
+                  }}
+                  className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-semibold text-slate-300 transition hover:border-cyan-400 hover:text-cyan-300"
+                >
+                  {copiedInviteCode
+                    ? "Copied ✓"
+                    : "Copy"}
+                </button>
+              </div>
+            )}
+
+            <div className="mt-6 space-y-4">
+              {/* Create Group */}
+              <div>
+                <div className="mb-2 text-xs uppercase tracking-wide text-slate-500">
+                  Create Group
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-[1fr_auto]">
+                  <input
+                    value={
+                      groupName
+                    }
+                    onChange={(
+                      event
+                    ) =>
+                      setGroupName(
+                        event.target.value
+                      )
+                    }
+                    placeholder="New group name"
+                    className="rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm outline-none focus:border-cyan-400"
+                  />
+
+                  <button
+                    onClick={
+                      handleCreateGroup
+                    }
+                    disabled={
+                      isCreatingGroup ||
+                      isCreatingGroupBackend ||
+                      isCreatingGroupConfirming ||
+                      !isConnected ||
+                      !isArcNetwork ||
+                      !groupName.trim()
+                    }
+                    className="rounded-xl bg-white px-5 py-3 text-sm font-semibold text-slate-950 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {isCreatingGroup
+                      ? "Registering..."
+                      : isCreatingGroupConfirming
+                        ? "Confirming..."
+                        : isCreatingGroupBackend
+                          ? "Saving..."
+                          : "Create Group"}
+                  </button>
+                </div>
+
+                {createGroupError && (
+                  <div className="mt-2 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-300">
+                    {createGroupError}
+                  </div>
+                )}
+              </div>
+
+              {/* Join Group */}
+              <div>
+                <div className="mb-2 text-xs uppercase tracking-wide text-slate-500">
+                  Join Group
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-[1fr_auto]">
+                  <input
+                    value={joinCode}
+                    onChange={(event) => {
+                      setJoinCode(
+                        event.target.value.toUpperCase()
+                      );
+                      setJoinGroupError(null);
+                      setJoinGroupSuccess(null);
+                    }}
+                    placeholder="VXR-XXXXX"
+                    className="rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 font-mono text-sm uppercase tracking-wider outline-none focus:border-cyan-400"
+                  />
+
+                  <button
+                    onClick={handleJoinGroup}
+                    disabled={
+                      isJoiningGroup ||
+                      !isConnected ||
+                      !joinCode.trim()
+                    }
+                    className="rounded-xl bg-cyan-400 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {isJoiningGroup
+                      ? "Joining..."
+                      : "Join Group"}
+                  </button>
+                </div>
+
+                {joinGroupError && (
+                  <div className="mt-2 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-300">
+                    {joinGroupError}
+                  </div>
+                )}
+
+                {joinGroupSuccess && (
+                  <div className="mt-2 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3 text-xs text-emerald-300">
+                    {joinGroupSuccess}
+                  </div>
+                )}
+              </div>
             </div>
 
-            {createGroupTxHash && (
-              <div className="mt-4 rounded-xl bg-slate-950 p-4 text-sm">
-                <div className="text-slate-500">
-                  Group registration
+            {(isCreatingGroup || isCreatingGroupConfirming || isCreatingGroupBackend) && (
+              <div className="mt-4 rounded-xl bg-slate-950 p-4 text-sm text-slate-400">
+                {isCreatingGroup
+                  ? "Submitting transaction..."
+                  : isCreatingGroupConfirming
+                    ? "Confirming on Arc..."
+                    : "Saving to backend..."}
+              </div>
+            )}
+
+            {isGroupCreatedOnChain && !isCreatingGroupBackend && !createGroupError && !isCreatingGroup && (
+              <div className="mt-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 text-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-emerald-300">
+                    Group created ✓
+                  </span>
+
+                  {createGroupTxHash && (
+                    <a
+                      href={`https://testnet.arcscan.app/tx/${createGroupTxHash}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-cyan-400 hover:text-cyan-300"
+                    >
+                      View transaction on Arcscan ↗
+                    </a>
+                  )}
                 </div>
-
-                <div className="mt-1 break-all text-cyan-400">
-                  {
-                    createGroupTxHash
-                  }
-                </div>
-
-                {isCreatingGroupConfirming && (
-                  <div className="mt-2 text-amber-400">
-                    Confirming...
-                  </div>
-                )}
-
-                {isGroupCreatedOnChain && (
-                  <div className="mt-2 text-emerald-400">
-                    Group registered on Arc ✓
-                  </div>
-                )}
               </div>
             )}
 
@@ -2377,11 +3280,11 @@ useEffect(() => {
                   Coordinator
                 </div>
 
-                <div className="mt-2 text-sm">
+                <div className="mt-2 font-mono text-sm">
                   {isCoordinatorLoading
                     ? "Loading..."
                     : formatIdentity(
-                        coordinator
+                        activeBackendGroup?.coordinatorAddress ?? coordinator
                       )}
                 </div>
 
@@ -2410,7 +3313,7 @@ useEffect(() => {
                   Members
                 </div>
 
-                <div className="mt-2 text-sm text-slate-300">
+                <div className="mt-2 text-2xl font-bold">
                   {
                     members.length
                   }
@@ -2509,14 +3412,24 @@ useEffect(() => {
               onClick={
                 handleAddExpense
               }
-              className="rounded-xl bg-cyan-400 px-5 py-3 text-sm font-semibold text-slate-950 hover:bg-cyan-300"
+              disabled={isAddingExpense}
+              className="rounded-xl bg-cyan-400 px-5 py-3 text-sm font-semibold text-slate-950 hover:bg-cyan-300 disabled:opacity-50"
             >
-              Add Expense
+              {isAddingExpense ? "Adding..." : "Add Expense"}
             </button>
           </div>
 
-          {expenses.length >
-            0 && (
+          {expensesError && (
+            <div className="mt-4 rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-xs text-red-400">
+              {expensesError}
+            </div>
+          )}
+
+          {isExpensesLoading ? (
+            <div className="mt-6 p-8 text-center text-sm text-slate-500">
+              Loading group expenses from backend...
+            </div>
+          ) : expenses.length > 0 ? (
             <div className="mt-6 overflow-x-auto">
               <table className="w-full text-left text-sm">
                 <thead className="border-b border-slate-800 text-xs uppercase tracking-wide text-slate-500">
@@ -2533,7 +3446,12 @@ useEffect(() => {
                       Paid by
                     </th>
 
+                    <th className="pb-3">
+                      Status
+                    </th>
+
                     <th className="pb-3 text-right">
+                      Action
                     </th>
                   </tr>
                 </thead>
@@ -2541,11 +3459,10 @@ useEffect(() => {
                 <tbody>
                   {expenses.map(
                     (
-                      expense,
-                      index
+                      expense
                     ) => (
                       <tr
-                        key={`${expense.description}-${index}`}
+                        key={expense.id}
                         className="border-b border-slate-800/70"
                       >
                         <td className="py-4">
@@ -2556,7 +3473,7 @@ useEffect(() => {
 
                         <td className="py-4">
                           {
-                            expense.amount
+                            Number(expense.amount).toFixed(2)
                           }{" "}
                           USDC
                         </td>
@@ -2567,18 +3484,41 @@ useEffect(() => {
                           )}
                         </td>
 
+                        <td className="py-4">
+                          {expense.settled ? (
+                            <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-400">
+                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                              Settled
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-0.5 text-xs font-medium text-amber-400">
+                              <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+                              Unsettled
+                            </span>
+                          )}
+                        </td>
+
                         <td className="py-4 text-right">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleDeleteExpense(
-                                index
-                              )
-                            }
-                            className="text-xs text-red-400 hover:text-red-300"
-                          >
-                            Delete
-                          </button>
+                          {expense.settled ? (
+                            <span className="text-xs text-slate-600">
+                              Locked
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={isDeletingExpenseId === expense.id}
+                              onClick={() =>
+                                handleDeleteExpense(
+                                  expense
+                                )
+                              }
+                              className="text-xs text-red-400 hover:text-red-300 disabled:opacity-50"
+                            >
+                              {isDeletingExpenseId === expense.id
+                                ? "Deleting..."
+                                : "Delete"}
+                            </button>
+                          )}
                         </td>
                       </tr>
                     )
@@ -2586,7 +3526,7 @@ useEffect(() => {
                 </tbody>
               </table>
             </div>
-          )}
+          ) : null}
         </section>
 
         {/* Settlement */}
@@ -2603,9 +3543,8 @@ useEffect(() => {
             </p>
           </div>
 
-          {settledExpenseBatch ===
-            currentExpenseBatch &&
-          expenses.length > 0 ? (
+          {expenses.length > 0 &&
+          expenses.every((expense) => expense.settled) ? (
             <div className="mt-6 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-6">
               <div className="text-lg font-semibold text-emerald-400">
                 Settlement Complete ✓
@@ -2696,26 +3635,30 @@ useEffect(() => {
                       groupNonce ===
                         undefined ||
                       !isCoordinator ||
-                      !isArcNetwork
+                      !isArcNetwork ||
+                      isSignedIntentValid
                     }
                     className="rounded-lg bg-white px-5 py-3 text-sm font-semibold text-slate-950 disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     {isSigningSettlement
                       ? "Signing..."
-                      : "Sign Settlement Intent"}
+                      : isSignedIntentValid
+                        ? "Settlement Intent Signed ✓"
+                        : "Sign Settlement Intent"}
                   </button>
                 </div>
 
                 {!isCoordinator &&
                   isConnected &&
-                  isArcNetwork && (
+                  isArcNetwork &&
+                  !isSignedIntentValid && (
                     <div className="mt-4 text-xs text-amber-400">
                       Only the group coordinator can
                       sign the settlement intent.
                     </div>
                   )}
 
-                {settlementSignature && (
+                {isSignedIntentValid && settlementSignature && (
                   <div className="mt-5 rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-4">
                     <div className="font-semibold text-emerald-400">
                       Settlement Intent Signed ✓
@@ -2737,6 +3680,12 @@ useEffect(() => {
                         {formatDeadline()}
                       </span>
                     </div>
+
+                    {!allRequiredApprovalsConfirmed && (
+                      <div className="mt-3 text-xs text-amber-400">
+                        Debtor members must approve USDC before the settlement can be executed.
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -2768,25 +3717,26 @@ useEffect(() => {
                         }
                         disabled={
                           isApprovingUSDC ||
-                          !isArcNetwork
+                          !isArcNetwork ||
+                          isConnectedWalletApproved
                         }
                         className="rounded-lg bg-cyan-400 px-5 py-3 text-sm font-semibold text-slate-950 disabled:cursor-not-allowed disabled:opacity-40"
                       >
                         {isApprovingUSDC
                           ? "Approving USDC..."
-                          : approveTxHash
+                          : isConnectedWalletApproved
                             ? "USDC Approved ✓"
                             : "Approve USDC for Settlement"}
                       </button>
                     </div>
 
-                    {approveTxHash && (
+                    {currentApprovalTx && (
                       <div className="mt-4 break-all text-xs text-slate-500">
                         Approval transaction:
 
                         <div className="mt-1 text-cyan-400">
                           {
-                            approveTxHash
+                            currentApprovalTx
                           }
                         </div>
                       </div>
@@ -2795,7 +3745,7 @@ useEffect(() => {
                 )}
 
               {/* Step 3: Execute */}
-              {settlementSignature && (
+              {showStep3 && (
                 <div className="mt-4 rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-5">
                   <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                     <div>
@@ -2856,6 +3806,12 @@ useEffect(() => {
                       )}
                     </div>
                   )}
+
+                  {settlementExecutionError && (
+                    <div className="mt-4 rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-xs text-red-400">
+                      {settlementExecutionError}
+                    </div>
+                  )}
                 </div>
               )}
             </>
@@ -2903,8 +3859,7 @@ useEffect(() => {
             <div className="mt-6 rounded-xl border border-dashed border-slate-700 p-8 text-center text-sm text-slate-500">
               Loading on-chain activity...
             </div>
-          ) : activity.length ===
-            0 ? (
+          ) : activity.length === 0 ? (
             <div className="mt-6 rounded-xl border border-dashed border-slate-700 p-8 text-center text-sm text-slate-500">
               No on-chain activity found for this group.
             </div>
@@ -2914,77 +3869,106 @@ useEffect(() => {
                 (
                   item,
                   index
-                ) => (
-                  <div
-                    key={`${item.txHash}-${index}`}
-                    className="rounded-xl bg-slate-950 p-4"
-                  >
-                    <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                      <div>
-                        {item.type ===
-                        "registration" ? (
-                          <>
-                            <div className="font-semibold text-emerald-300">
-                              Group Registered
+                ) => {
+                  if (item.type === "registration") {
+                    return (
+                      <div
+                        key={`${item.txHash}-${index}`}
+                        className="rounded-xl bg-slate-950 p-4"
+                      >
+                        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-emerald-300">
+                                Group created
+                              </span>
+                              <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs text-emerald-400">
+                                System
+                              </span>
                             </div>
 
                             <div className="mt-1 text-sm text-slate-400">
                               Coordinator:{" "}
-                              <span className="text-slate-300">
+                              <span className="font-mono text-slate-300">
                                 {formatIdentity(
                                   item.coordinator
                                 )}
                               </span>
                             </div>
-                          </>
-                        ) : (
-                          <>
-                            <div className="font-semibold text-cyan-300">
-                              Settlement Executed
+                          </div>
+
+                          <div className="text-left md:text-right">
+                            <div className="text-xs text-slate-500">
+                              Block{" "}
+                              {item.blockNumber.toString()}
                             </div>
 
-                            <div className="mt-1 text-sm text-slate-400">
-                              {formatIdentity(
-                                item.from
-                              )}{" "}
-                              →{" "}
-                              {formatIdentity(
-                                item.to
-                              )}
-                            </div>
-
-                            {item.amount !==
-                              undefined && (
-                              <div className="mt-1 text-sm font-semibold text-slate-300">
-                                {formatUnits(
-                                  item.amount,
-                                  6
-                                )}{" "}
-                                USDC
-                              </div>
-                            )}
-                          </>
-                        )}
+                            <a
+                              href={`https://testnet.arcscan.app/tx/${item.txHash}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="mt-1 inline-block text-xs text-cyan-400 hover:text-cyan-300"
+                            >
+                              View transaction on Arcscan ↗
+                            </a>
+                          </div>
+                        </div>
                       </div>
+                    );
+                  }
 
-                      <div className="text-left md:text-right">
-                        <div className="text-xs text-slate-500">
-                          Block{" "}
-                          {item.blockNumber.toString()}
+                  return (
+                    <div
+                      key={`${item.txHash}-${index}`}
+                      className="rounded-xl bg-slate-950 p-4"
+                    >
+                      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                        <div>
+                          <div className="font-semibold text-cyan-300">
+                            Settlement
+                          </div>
+
+                          {item.amount !==
+                            undefined && (
+                            <div className="mt-1 text-lg font-bold text-white">
+                              {formatUnits(
+                                item.amount,
+                                6
+                              )}{" "}
+                              USDC
+                            </div>
+                          )}
+
+                          <div className="mt-1 text-sm text-slate-400">
+                            {formatIdentity(
+                              item.from
+                            )}{" "}
+                            →{" "}
+                            {formatIdentity(
+                              item.to
+                            )}
+                          </div>
                         </div>
 
-                        <a
-                          href={`https://testnet.arcscan.app/tx/${item.txHash}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="mt-1 inline-block text-xs text-cyan-400 hover:text-cyan-300"
-                        >
-                          View on Arcscan ↗
-                        </a>
+                        <div className="text-left md:text-right">
+                          <div className="text-xs text-slate-500">
+                            Block{" "}
+                            {item.blockNumber.toString()}
+                          </div>
+
+                          <a
+                            href={`https://testnet.arcscan.app/tx/${item.txHash}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="mt-1 inline-block text-xs text-cyan-400 hover:text-cyan-300"
+                          >
+                            View transaction on Arcscan ↗
+                          </a>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                )
+                  );
+                }
               )}
             </div>
           )}
@@ -3115,7 +4099,7 @@ useEffect(() => {
                       null
                     );
 
-                    setSettledExpenseBatch(
+                    setActiveSettlementSnapshot(
                       null
                     );
                   }}
@@ -3137,12 +4121,12 @@ useEffect(() => {
               </h2>
 
               <p className="mt-1 text-sm text-slate-500">
-                ENS provides the human-readable identity layer.
+                Authoritative backend memberships for this group.
               </p>
             </div>
 
             <div className="rounded-lg border border-cyan-500/20 bg-cyan-500/5 px-3 py-2 text-xs text-cyan-300">
-              ENS Identity
+              {members.length} {members.length === 1 ? "Member" : "Members"}
             </div>
           </div>
 
@@ -3155,8 +4139,11 @@ useEffect(() => {
                   ];
 
                 const memberIsCoordinator =
+                  member.role === "COORDINATOR" ||
                   coordinator?.toLowerCase() ===
-                  member.address.toLowerCase();
+                    member.address.toLowerCase() ||
+                  activeBackendGroup?.coordinatorAddress.toLowerCase() ===
+                    member.address.toLowerCase();
 
                 return (
                   <div
@@ -3166,33 +4153,32 @@ useEffect(() => {
                     className="rounded-xl bg-slate-950 p-4"
                   >
                     <div className="flex items-center justify-between gap-3">
-                      <div className="font-semibold">
-                        {
-                          member.name
-                        }
+                      <div className="font-mono text-sm font-semibold text-white">
+                        {formatAddress(
+                          member.address
+                        )}
                       </div>
 
                       <div className="flex items-center gap-2">
-                        {memberIsCoordinator && (
+                        {memberIsCoordinator ? (
                           <div className="rounded-full bg-emerald-400/10 px-2 py-1 text-xs font-semibold text-emerald-300">
                             Coordinator
+                          </div>
+                        ) : (
+                          <div className="rounded-full bg-slate-800 px-2 py-1 text-xs font-semibold text-slate-400">
+                            Member
                           </div>
                         )}
 
                         {memberENS && (
                           <div className="rounded-full bg-cyan-400/10 px-2 py-1 text-xs font-semibold text-cyan-300">
-                            ENS
+                            {memberENS}
                           </div>
                         )}
                       </div>
                     </div>
 
-                    <div className="mt-2 text-sm font-semibold text-cyan-300">
-                      {memberENS ??
-                        "No ENS name"}
-                    </div>
-
-                    <div className="mt-2 break-all text-xs text-slate-500">
+                    <div className="mt-2 break-all font-mono text-xs text-slate-500">
                       {
                         member.address
                       }
