@@ -917,29 +917,11 @@ forge script         # Run deployment scripts
     - View Arc transaction links
     - See expenses marked as settled
 
-### Demo Video
-
-<!-- 🎥 Demo video placeholder -->
-
-**Suggested Demo Structure (2-3 minutes):**
-
-- **0:00-0:20** — Problem: Manual group expense settlement
-- **0:20-0:45** — Solution: Intent-based on-chain settlement
-- **0:45-1:00** — Create group, register on Arc
-- **1:00-1:20** — Record expenses, view obligations
-- **1:20-1:40** — Create settlement intent
-- **1:40-2:00** — Sign EIP-712, execute on Arc
-- **2:00-2:20** — Backend verification, view on Arcscan
-- **2:20-2:40** — Architecture and security highlights
-- **2:40-3:00** — Conclusion and future roadmap
-
 ---
 
 ## Screenshots
 
 <!-- Add screenshots when available -->
-
-**Suggested Screenshots:**
 
 1. **Dashboard** — Group list, wallet connection
 2. **Expense Management** — Record and view expenses
@@ -1229,7 +1211,7 @@ Built for ETHGlobal / Arc + Circle bounty program
 
 ## Contact
 
-- GitHub: [github.com/yourusername/vectra](https://github.com/yourusername/vectra)
+- GitHub: [github.com/yourusername/vectra](https://github.com/Pixie-19/Vectra)
 - Demo: [vectra-sage.vercel.app](https://vectra-sage.vercel.app)
 
 ---
