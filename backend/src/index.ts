@@ -10,7 +10,30 @@ import { requireAuth, type AuthenticatedRequest } from "./middleware/auth.js";
 const app = express();
 const PORT = 4000;
 
-app.use(cors());
+// CORS configuration
+const FRONTEND_URL = process.env.FRONTEND_URL;
+const allowedOrigins = FRONTEND_URL
+  ? [FRONTEND_URL]
+  : ["http://localhost:3000"];
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps, curl, Postman)
+      if (!origin) {
+        return callback(null, true);
+      }
+
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    credentials: true,
+  })
+);
+
 app.use(express.json());
 app.use("/auth", authRouter);
 app.use("/users", usersRouter);
