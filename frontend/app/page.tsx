@@ -18,6 +18,7 @@ import {
   useConnect,
   useDisconnect,
   useReadContract,
+  useSignMessage,
   useSignTypedData,
   useSwitchChain,
   useWaitForTransactionReceipt,
@@ -31,7 +32,7 @@ import {
 
 import { arcTestnet } from "../config/wagmi";
 
-import { apiFetch } from "../lib/api";
+import { apiFetch, setSessionToken, getSessionToken } from "../lib/api";
 
 type Settlement = {
   from: string;
@@ -402,6 +403,18 @@ export default function Home() {
     useState<string | null>(null);
 
   /*
+   * Backend authentication state.
+   */
+  const [isAuthenticating, setIsAuthenticating] =
+    useState(false);
+
+  const [isAuthenticated, setIsAuthenticated] =
+    useState(false);
+
+  const [authError, setAuthError] =
+    useState<string | null>(null);
+
+  /*
    * Vectra client mount initialization.
    * State is authoritative from PostgreSQL backend.
    */
@@ -425,6 +438,10 @@ export default function Home() {
   const {
     disconnect,
   } = useDisconnect();
+
+  const {
+    signMessageAsync,
+  } = useSignMessage();
 
   /*
    * Resolve the connected wallet's primary ENS name.
@@ -474,6 +491,120 @@ export default function Home() {
   }, [address]);
 
   /*
+   * Authenticate with backend after wallet connection.
+   *
+   * This effect handles the wallet-signature authentication flow:
+   * 1. Request nonce from backend
+   * 2. Sign authentication message with wallet
+   * 3. Verify signature and receive session token
+   * 4. Store token in memory for API requests
+   */
+  useEffect(() => {
+    let cancelled = false;
+
+    const authenticate = async () => {
+      if (!address || !signMessageAsync) {
+        setIsAuthenticated(false);
+        setIsAuthenticating(false);
+        return;
+      }
+
+      // Skip if already authenticated
+      if (isAuthenticated && getSessionToken()) {
+        return;
+      }
+
+      setIsAuthenticating(true);
+      setAuthError(null);
+
+      try {
+        // Step 1: Request authentication challenge
+        const challenge = await apiFetch<{
+          walletAddress: string;
+          nonce: string;
+          message: string;
+          expiresAt: string;
+        }>("/auth/nonce", {
+          method: "POST",
+          body: JSON.stringify({
+            walletAddress: address,
+          }),
+        });
+
+        if (cancelled) return;
+
+        // Step 2: Sign the exact message from backend
+        const signature = await signMessageAsync({
+          message: challenge.message,
+        });
+
+        if (cancelled) return;
+
+        // Step 3: Verify signature and get session token
+        const result = await apiFetch<{
+          authenticated: boolean;
+          sessionToken: string;
+          expiresAt: string;
+          user: {
+            id: string;
+            walletAddress: string;
+          };
+        }>("/auth/verify", {
+          method: "POST",
+          body: JSON.stringify({
+            nonce: challenge.nonce,
+            signature,
+          }),
+        });
+
+        if (cancelled) return;
+
+        if (result.authenticated) {
+          setSessionToken(result.sessionToken);
+          setIsAuthenticated(true);
+        } else {
+          throw new Error("Authentication failed");
+        }
+      } catch (error) {
+        console.error("Backend authentication failed:", error);
+
+        if (!cancelled) {
+          setAuthError(
+            error instanceof Error
+              ? error.message
+              : "Failed to authenticate with backend"
+          );
+          setIsAuthenticated(false);
+          setSessionToken(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsAuthenticating(false);
+        }
+      }
+    };
+
+    authenticate();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [address, signMessageAsync, isAuthenticated]);
+
+  /*
+   * Clear authentication when wallet address changes or disconnects.
+   *
+   * This ensures each wallet has its own session and prevents
+   * reusing a previous wallet's authentication.
+   */
+  useEffect(() => {
+    // When address changes, clear the previous session
+    setIsAuthenticated(false);
+    setAuthError(null);
+    setSessionToken(null);
+  }, [address]);
+
+  /*
    * Fetch the connected wallet's groups from the
    * backend whenever the wallet address changes.
    */
@@ -481,7 +612,7 @@ export default function Home() {
     let cancelled = false;
 
     const fetchGroups = async () => {
-      if (!address) {
+      if (!address || !isAuthenticated) {
         setIsBackendGroupsLoading(false);
         return;
       }
@@ -492,9 +623,7 @@ export default function Home() {
       try {
         const data = await apiFetch<{
           groups: BackendGroup[];
-        }>(
-          `/groups?walletAddress=${address}`
-        );
+        }>("/groups");
 
         if (!cancelled) {
           setBackendGroups(
@@ -528,7 +657,7 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, [address]);
+  }, [address, isAuthenticated]);
 
   /*
    * Validate activeGroupId against backendGroups.
@@ -629,7 +758,7 @@ export default function Home() {
           }[];
         };
       }>(
-        `/groups/${backendId}?walletAddress=${address}`
+        `/groups/${backendId}`
       );
 
       if (data?.group?.memberships) {
@@ -663,7 +792,7 @@ export default function Home() {
   const loadGroupExpenses = async (
     backendId: string
   ) => {
-    if (!address) {
+    if (!address || !isAuthenticated) {
       return;
     }
 
@@ -674,7 +803,7 @@ export default function Home() {
       const data = await apiFetch<{
         expenses: Expense[];
       }>(
-        `/groups/${backendId}/expenses?walletAddress=${address}`
+        `/groups/${backendId}/expenses`
       );
 
       if (data?.expenses) {
@@ -700,7 +829,7 @@ export default function Home() {
    * activeGroupId, backendGroups, or address changes.
    */
   useEffect(() => {
-    if (!activeGroupId || !address || isBackendGroupsLoading) {
+    if (!activeGroupId || !address || !isAuthenticated || isBackendGroupsLoading) {
       return;
     }
 
@@ -732,7 +861,7 @@ export default function Home() {
 
     loadActiveGroupMembers(activeGroup.id);
     loadGroupExpenses(activeGroup.id);
-  }, [activeGroupId, backendGroups, address]);
+  }, [activeGroupId, backendGroups, address, isAuthenticated]);
 
   /*
    * Resolve ENS names for group members.
@@ -932,7 +1061,6 @@ export default function Home() {
           {
             method: "PATCH",
             body: JSON.stringify({
-              walletAddress: address,
               status: "SUBMITTED",
               transactionHash: settlementTxHash,
             }),
@@ -970,7 +1098,6 @@ export default function Home() {
             {
               method: "PATCH",
               body: JSON.stringify({
-                walletAddress: address,
                 status: "FAILED",
               }),
             }
@@ -981,7 +1108,6 @@ export default function Home() {
             {
               method: "PATCH",
               body: JSON.stringify({
-                walletAddress: address,
                 status: "COMPLETED",
                 transactionHash: settlementTxHash,
                 expenseIds: snapshot.expenseIds,
@@ -1033,7 +1159,6 @@ export default function Home() {
           {
             method: "PATCH",
             body: JSON.stringify({
-              walletAddress: address,
               status: "FAILED",
             }),
           }
@@ -1574,7 +1699,25 @@ export default function Home() {
     };
 
   const handleDisconnect =
-    () => {
+    async () => {
+      // Attempt to logout from backend if authenticated
+      if (isAuthenticated && getSessionToken()) {
+        try {
+          await apiFetch("/auth/logout", {
+            method: "POST",
+          });
+        } catch (error) {
+          // Log but don't block disconnect on logout failure
+          console.error("Logout failed:", error);
+        }
+      }
+
+      // Clear authentication state
+      setSessionToken(null);
+      setIsAuthenticated(false);
+      setIsAuthenticating(false);
+      setAuthError(null);
+
       disconnect();
 
       /*
@@ -1738,7 +1881,6 @@ export default function Home() {
                 pendingGroupCreation.name,
               blockchainGroupId:
                 pendingGroupCreation.blockchainGroupId,
-              walletAddress: address,
               inviteCode:
                 pendingGroupCreation.inviteCode,
             }),
@@ -1753,7 +1895,7 @@ export default function Home() {
               await apiFetch<{
                 groups: BackendGroup[];
               }>(
-                `/groups?walletAddress=${address}`
+                "/groups"
               );
 
             setBackendGroups(
@@ -1948,7 +2090,6 @@ export default function Home() {
         body: JSON.stringify({
           inviteCode: cleanCode,
           code: cleanCode,
-          walletAddress: address,
         }),
       });
 
@@ -1957,7 +2098,7 @@ export default function Home() {
        */
       const groupsData = await apiFetch<{
         groups: BackendGroup[];
-      }>(`/groups?walletAddress=${address}`);
+      }>("/groups");
       setBackendGroups(groupsData.groups);
 
       /*
@@ -2060,9 +2201,6 @@ export default function Home() {
         group: BackendGroup;
       }>(`/groups/${activeGroup.id}/deactivate`, {
         method: "PATCH",
-        body: JSON.stringify({
-          walletAddress: address,
-        }),
       });
 
       /*
@@ -2070,7 +2208,7 @@ export default function Home() {
        */
       const data = await apiFetch<{
         groups: BackendGroup[];
-      }>(`/groups?walletAddress=${address}`);
+      }>("/groups");
 
       setBackendGroups(data.groups);
 
@@ -2163,7 +2301,6 @@ export default function Home() {
           description: expenseDescription.trim(),
           amount: amount.toFixed(2),
           paidBy: expensePaidBy,
-          walletAddress: address,
         }),
       });
 
@@ -2222,9 +2359,6 @@ export default function Home() {
         `/groups/${activeBackendGroup.id}/expenses/${expense.id}`,
         {
           method: "DELETE",
-          body: JSON.stringify({
-            walletAddress: address,
-          }),
         }
       );
 
@@ -2478,7 +2612,6 @@ export default function Home() {
           }>(`/groups/${targetGroup.id}/settlements`, {
             method: "POST",
             body: JSON.stringify({
-              walletAddress: address,
               nonce: nonce.toString(),
               totalAmount,
             }),
@@ -2598,7 +2731,6 @@ export default function Home() {
           }>(`/groups/${activeBackendGroup.id}/settlements`, {
             method: "POST",
             body: JSON.stringify({
-              walletAddress: address,
               nonce: groupNonce.toString(),
               totalAmount,
             }),
@@ -2679,7 +2811,6 @@ export default function Home() {
             {
               method: "PATCH",
               body: JSON.stringify({
-                walletAddress: address,
                 status: "SUBMITTED",
                 transactionHash: hash,
               }),
@@ -2696,7 +2827,6 @@ export default function Home() {
           {
             method: "PATCH",
             body: JSON.stringify({
-              walletAddress: address,
               status: "FAILED",
             }),
           }
@@ -2858,6 +2988,18 @@ export default function Home() {
                     )
                   )}
                 </div>
+
+                {isAuthenticating && (
+                  <div className="text-xs text-slate-400">
+                    Authenticating...
+                  </div>
+                )}
+
+                {authError && (
+                  <div className="text-xs text-red-400">
+                    {authError}
+                  </div>
+                )}
 
                 <button
                   onClick={

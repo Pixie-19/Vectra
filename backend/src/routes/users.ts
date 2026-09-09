@@ -1,32 +1,27 @@
 import { Router } from "express";
 import prisma from "../lib/prisma.js";
+import {
+  requireAuth,
+  type AuthenticatedRequest,
+} from "../middleware/auth.js";
 
 const router = Router();
 
-router.post("/", async (req, res) => {
+router.post("/", requireAuth, async (req, res) => {
   try {
-    const { walletAddress } = req.body;
+    const authReq = req as AuthenticatedRequest;
 
-    if (
-      typeof walletAddress !== "string" ||
-      !/^0x[a-fA-F0-9]{40}$/.test(walletAddress)
-    ) {
-      return res.status(400).json({
-        error: "Invalid wallet address",
-      });
-    }
-
-    const normalizedAddress = walletAddress.toLowerCase();
+    const walletAddress = authReq.user.walletAddress;
 
     const user = await prisma.user.upsert({
       where: {
-        walletAddress: normalizedAddress,
+        walletAddress,
       },
       update: {
         lastSeenAt: new Date(),
       },
       create: {
-        walletAddress: normalizedAddress,
+        walletAddress,
       },
     });
 
