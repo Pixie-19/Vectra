@@ -514,6 +514,12 @@ export default function Home() {
         return;
       }
 
+      // Skip if authentication is already in progress (prevents double wallet
+      // signature prompt from simultaneous HTTP 401 responses)
+      if (isAuthenticating) {
+        return;
+      }
+
       setIsAuthenticating(true);
       setAuthError(null);
 
