@@ -1,32 +1,1005 @@
 @import "tailwindcss";
 
-:root {
-  --background: #020617;
-  --foreground: #ffffff;
+/* 
+ * Vectra Premium Design System
+ * Intent-Based Group Treasury & USDC Settlement on Arc
+ */
 
-  --vectra-background: #020617;
-  --vectra-surface: #0f172a;
-  --vectra-border: #1e293b;
-  --vectra-text: #ffffff;
-  --vectra-muted: #64748b;
-  --vectra-accent: #22d3ee;
+:root {
+  /* Color Palette */
+  --oceanic-noir: #172B36;
+  --nocturnal-expedition: #114C5A;
+  --arctic-powder: #F1F6F4;
+  --mystic-mint: #D9E8E2;
+  --forsythia: #FFC801;
+  --deep-saffron: #FF9932;
+
+  /* Semantic Colors */
+  --background: var(--arctic-powder);
+  --background-dark: var(--oceanic-noir);
+  --foreground: var(--oceanic-noir);
+  --foreground-light: #2D4450;
+  
+  --surface: #FFFFFF;
+  --surface-dark: var(--nocturnal-expedition);
+  --surface-elevated: var(--mystic-mint);
+  
+  --border: #C5D9D1;
+  --border-subtle: #E5F0EC;
+  --border-dark: rgba(255, 255, 255, 0.1);
+  
+  --text-primary: var(--oceanic-noir);
+  --text-secondary: #4A6A78;
+  --text-muted: #7B9AA7;
+  --text-inverse: #FFFFFF;
+  
+  --accent-primary: var(--forsythia);
+  --accent-secondary: var(--deep-saffron);
+  --accent-tertiary: var(--nocturnal-expedition);
+  
+  --success: #10B981;
+  --warning: var(--deep-saffron);
+  --danger: #EF4444;
+  --info: var(--nocturnal-expedition);
+  
+  /* Spacing Scale */
+  --space-xs: 0.25rem;
+  --space-sm: 0.5rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 2rem;
+  --space-2xl: 3rem;
+  --space-3xl: 4rem;
+  
+  /* Radius */
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
+  --shadow-md: 0 2px 4px 0 rgba(0, 0, 0, 0.04);
+  --shadow-lg: 0 4px 12px 0 rgba(0, 0, 0, 0.06);
+  --shadow-xl: 0 8px 24px 0 rgba(0, 0, 0, 0.08);
+  
+  /* Transitions */
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-base: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 300ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-
-  --font-sans: var(--font-geist-sans);
+  
+  --font-sans: var(--font-primary);
+  --font-serif: var(--font-display);
   --font-mono: var(--font-geist-mono);
 }
 
+/* Typography System */
 html {
-  background: var(--vectra-background);
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 body {
   margin: 0;
-  background: var(--vectra-background);
-  color: var(--vectra-text);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--background);
+  color: var(--text-primary);
+  font-family: var(--font-primary), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  line-height: 1.6;
+  letter-spacing: -0.011em;
+}
+
+/* Smooth scrolling */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+/* Focus styles */
+:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+/* Selection styles */
+::selection {
+  background: var(--forsythia);
+  color: var(--oceanic-noir);
+}
+
+/* Typography Utilities */
+.text-display {
+  font-family: var(--font-display), Georgia, serif;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.text-mono {
+  font-family: var(--font-geist-mono), "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, "Courier New", monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Premium Component Patterns */
+.card-premium {
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  transition: all var(--transition-base);
+}
+
+.card-premium:hover {
+  box-shadow: var(--shadow-lg);
+  border-color: var(--border);
+}
+
+.card-dark {
+  background: var(--surface-dark);
+  border: 1px solid var(--border-dark);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  color: var(--text-inverse);
+}
+
+.btn-primary {
+  background: var(--forsythia);
+  color: var(--oceanic-noir);
+  font-weight: 600;
+  border-radius: var(--radius-md);
+  padding: 0.625rem 1.25rem;
+  border: none;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  font-size: 0.9375rem;
+  letter-spacing: -0.01em;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #FFD633;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(255, 200, 1, 0.3);
+}
+
+.btn-primary:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  background: var(--nocturnal-expedition);
+  color: var(--text-inverse);
+  font-weight: 600;
+  border-radius: var(--radius-md);
+  padding: 0.625rem 1.25rem;
+  border: none;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  font-size: 0.9375rem;
+  letter-spacing: -0.01em;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: #156074;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(17, 76, 90, 0.3);
+}
+
+.btn-secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-secondary);
+  font-weight: 500;
+  border-radius: var(--radius-md);
+  padding: 0.625rem 1.25rem;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  font-size: 0.9375rem;
+}
+
+.btn-ghost:hover:not(:disabled) {
+  background: var(--surface-elevated);
+  border-color: var(--text-secondary);
+  color: var(--text-primary);
+}
+
+.input-premium {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0.625rem 0.875rem;
+  font-size: 0.9375rem;
+  color: var(--text-primary);
+  transition: all var(--transition-fast);
+  width: 100%;
+}
+
+.input-premium:focus {
+  outline: none;
+  border-color: var(--accent-tertiary);
+  box-shadow: 0 0 0 3px rgba(17, 76, 90, 0.1);
+}
+
+.input-premium::placeholder {
+  color: var(--text-muted);
+}
+
+.badge-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.625rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.badge-pending {
+  background: #FEF3C7;
+  color: #92400E;
+}
+
+.badge-completed {
+  background: #D1FAE5;
+  color: #065F46;
+}
+
+.badge-failed {
+  background: #FEE2E2;
+  color: #991B1B;
+}
+
+.badge-coordinator {
+  background: var(--forsythia);
+  color: var(--oceanic-noir);
+}
+
+.badge-member {
+  background: var(--mystic-mint);
+  color: var(--nocturnal-expedition);
+}
+
+/* Loading States */
+@keyframes shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+.loading-shimmer {
+  animation: shimmer 2s infinite linear;
+  background: linear-gradient(
+    to right,
+    var(--surface-elevated) 0%,
+    var(--surface) 50%,
+    var(--surface-elevated) 100%
+  );
+  background-size: 2000px 100%;
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--surface-elevated);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: var(--radius-sm);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+
+/* ============================================
+   TARGETED READABILITY & SECTION FIXES
+   ============================================ */
+
+/* Fix ALL remaining dark sections */
+main section[class*="bg-slate-900"],
+main div[class*="bg-slate-900"] {
+  background: var(--surface) !important;
+  border-color: var(--border-subtle) !important;
+}
+
+/* Activity History & Members Badges - High Contrast */
+main span[class*="bg-cyan-500"],
+main span[class*="text-xs"][class*="uppercase"] {
+  font-weight: 600 !important;
+}
+
+/* Activity Labels - Dark readable text */
+main section div[class*="bg-cyan"] {
+  background: linear-gradient(135deg, rgba(217, 232, 226, 0.5) 0%, rgba(217, 232, 226, 0.3) 100%) !important;
+}
+
+main section div[class*="bg-cyan"] span {
+  color: var(--oceanic-noir) !important;
+  font-weight: 600 !important;
+}
+
+/* ============================================
+   OVERRIDE DARK SLATE CLASSES FOR LIGHT THEME
+   ============================================ */
+
+/* Force all sections to use light theme */
+main section {
+  background: var(--surface) !important;
+  border-color: var(--border-subtle) !important;
+  color: var(--text-primary) !important;
+}
+
+/* Input fields */
+main input,
+main select,
+main textarea {
+  background: var(--surface) !important;
+  border-color: var(--border) !important;
+  color: var(--text-primary) !important;
+}
+
+main input::placeholder,
+main select::placeholder,
+main textarea::placeholder {
+  color: var(--text-muted) !important;
+}
+
+main input:focus,
+main select:focus,
+main textarea:focus {
+  border-color: var(--accent-tertiary) !important;
+  outline: none !important;
+  box-shadow: 0 0 0 3px rgba(17, 76, 90, 0.1) !important;
+}
+
+/* Headings */
+main h2,
+main h3,
+main h4 {
+  color: var(--text-primary) !important;
+}
+
+/* Paragraphs and descriptions */
+main p {
+  color: var(--text-secondary) !important;
+}
+
+/* Labels */
+main label {
+  color: var(--text-muted) !important;
+}
+
+/* Tables */
+main table {
+  color: var(--text-primary) !important;
+}
+
+main thead {
+  border-color: var(--border) !important;
+  color: var(--text-muted) !important;
+}
+
+main tbody tr {
+  border-color: var(--border-subtle) !important;
+}
+
+main tbody tr:hover {
+  background: var(--surface-elevated) !important;
+}
+
+main tbody td {
+  color: var(--text-primary) !important;
+}
+
+/* Stat cards and nested cards */
+main section > div > div[class*="rounded"] {
+  background: var(--surface-elevated) !important;
+  border-color: var(--border-subtle) !important;
+  color: var(--text-primary) !important;
+}
+
+/* Loading states */
+main div[class*="text-center"] {
+  color: var(--text-secondary) !important;
+}
+
+/* Links */
+main a {
+  color: var(--accent-tertiary) !important;
+}
+
+main a:hover {
+  color: var(--accent-primary) !important;
+}
+
+/* Buttons - preserve existing button styling */
+main button[class*="bg-cyan"] {
+  background: var(--forsythia) !important;
+  color: var(--oceanic-noir) !important;
+}
+
+main button[class*="bg-white"] {
+  background: var(--surface) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border) !important;
+}
+
+main button[class*="bg-cyan"]:hover:not(:disabled) {
+  background: #FFD633 !important;
+}
+
+/* Status badges */
+main span[class*="text-emerald"] {
+  color: var(--success) !important;
+}
+
+main span[class*="text-red"] {
+  color: var(--danger) !important;
+}
+
+main span[class*="text-amber"] {
+  color: var(--warning) !important;
+}
+
+/* Monospace text */
+main [class*="font-mono"],
+main .text-mono {
+  font-family: var(--font-geist-mono) !important;
+  background: var(--surface-elevated) !important;
+  padding: 0.25rem 0.5rem !important;
+  border-radius: var(--radius-sm) !important;
+  border: 1px solid var(--border-subtle) !important;
+  color: var(--text-secondary) !important;
+}
+
+/* Alert/Message boxes */
+main div[class*="border-red"] {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.08) 0%, rgba(239, 68, 68, 0.04) 100%) !important;
+  border-color: var(--danger) !important;
+  color: #991B1B !important;
+}
+
+main div[class*="border-emerald"] {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(16, 185, 129, 0.04) 100%) !important;
+  border-color: var(--success) !important;
+  color: #065F46 !important;
+}
+
+main div[class*="border-amber"] {
+  background: linear-gradient(135deg, rgba(255, 153, 50, 0.08) 0%, rgba(255, 153, 50, 0.04) 100%) !important;
+  border-color: var(--warning) !important;
+  color: #92400E !important;
+}
+
+/* Specific overrides for nested dark elements */
+main section div[class*="bg-slate-950"],
+main section div[class*="bg-slate-900"] {
+  background: var(--surface-elevated) !important;
+}
+
+main section [class*="border-slate-800"],
+main section [class*="border-slate-700"] {
+  border-color: var(--border) !important;
+}
+
+main section [class*="text-slate-500"] {
+  color: var(--text-muted) !important;
+}
+
+main section [class*="text-slate-400"] {
+  color: var(--text-secondary) !important;
+}
+
+main section [class*="text-slate-300"] {
+  color: var(--text-primary) !important;
+}
+
+main section [class*="text-white"] {
+  color: var(--text-primary) !important;
+}
+
+/* Settlement section highlight */
+main section[class*="border-cyan-500"] {
+  border-color: var(--accent-tertiary) !important;
+  background: var(--surface) !important;
+}
+
+/* Preserve destructive button styling */
+main button[class*="border-red"] {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.08) 0%, rgba(239, 68, 68, 0.04) 100%) !important;
+  border-color: var(--danger) !important;
+  color: #991B1B !important;
+}
+
+main button[class*="border-red"]:hover:not(:disabled) {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.12) 0%, rgba(239, 68, 68, 0.06) 100%) !important;
+}
+
+/* Premium Section Cards */
+.vectra-section {
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: var(--space-xl);
+  box-shadow: var(--shadow-md);
+  transition: all var(--transition-base);
+}
+
+@media (max-width: 768px) {
+  .vectra-section {
+    padding: var(--space-lg);
+  }
+}
+
+.vectra-section-dark {
+  background: var(--surface-dark);
+  border: 1px solid var(--border-dark);
+  color: var(--text-inverse);
+}
+
+.vectra-section:hover {
+  box-shadow: var(--shadow-lg);
+}
+
+/* Typography Overrides for Premium Feel */
+.vectra-heading {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 1.125rem;
+  letter-spacing: -0.01em;
+  margin-bottom: var(--space-sm);
+}
+
+.vectra-subheading {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.vectra-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  margin-bottom: var(--space-xs);
+  display: block;
+}
+
+/* Group Cards */
+.vectra-group-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-lg);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  text-align: left;
+  width: 100%;
+}
+
+.vectra-group-card:hover {
+  border-color: var(--accent-tertiary);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.vectra-group-card-active {
+  background: linear-gradient(135deg, rgba(17, 76, 90, 0.08) 0%, rgba(17, 76, 90, 0.04) 100%);
+  border-color: var(--accent-tertiary);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Table Styling */
+.vectra-table {
+  width: 100%;
+  text-align: left;
+  font-size: 0.875rem;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.vectra-table thead {
+  border-bottom: 2px solid var(--border);
+}
+
+.vectra-table thead th {
+  padding-bottom: var(--space-md);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+}
+
+.vectra-table tbody tr {
+  border-bottom: 1px solid var(--border-subtle);
+  transition: background var(--transition-fast);
+}
+
+.vectra-table tbody tr:hover {
+  background: var(--surface-elevated);
+}
+
+.vectra-table tbody td {
+  padding: var(--space-lg) var(--space-sm);
+}
+
+.vectra-table tbody td:first-child {
+  padding-left: 0;
+}
+
+.vectra-table tbody td:last-child {
+  padding-right: 0;
+}
+
+/* Stats Cards */
+.vectra-stat-card {
+  background: var(--surface-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-lg);
+  transition: all var(--transition-base);
+}
+
+.vectra-stat-card:hover {
+  border-color: var(--border);
+  box-shadow: var(--shadow-sm);
+}
+
+.vectra-stat-value {
+  font-size: 1.875rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  margin-top: var(--space-sm);
+}
+
+/* Activity Items */
+.vectra-activity-item {
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-lg);
+  transition: all var(--transition-fast);
+}
+
+.vectra-activity-item:hover {
+  border-color: var(--border);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Member Cards */
+.vectra-member-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-lg);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  transition: all var(--transition-fast);
+}
+
+.vectra-member-card:hover {
+  border-color: var(--accent-tertiary);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Settlement Steps */
+.vectra-settlement-step {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-xl);
+  transition: all var(--transition-base);
+}
+
+.vectra-settlement-step-active {
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 3px rgba(255, 200, 1, 0.1);
+}
+
+.vectra-settlement-step-completed {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.05) 0%, rgba(16, 185, 129, 0.02) 100%);
+  border-color: var(--success);
+}
+
+/* Settlement Transfer Items */
+.vectra-transfer-item {
+  background: var(--mystic-mint);
+  border-radius: var(--radius-md);
+  padding: var(--space-lg);
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  font-size: 0.9375rem;
+}
+
+.vectra-transfer-arrow {
+  color: var(--accent-tertiary);
+  font-weight: 600;
+  font-size: 1.25rem;
+}
+
+/* Error/Success Messages */
+.vectra-alert {
+  border-radius: var(--radius-md);
+  padding: var(--space-lg);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.vectra-alert-error {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.08) 0%, rgba(239, 68, 68, 0.04) 100%);
+  border: 1px solid var(--danger);
+  color: #991B1B;
+}
+
+.vectra-alert-success {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(16, 185, 129, 0.04) 100%);
+  border: 1px solid var(--success);
+  color: #065F46;
+}
+
+.vectra-alert-warning {
+  background: linear-gradient(135deg, rgba(255, 153, 50, 0.08) 0%, rgba(255, 153, 50, 0.04) 100%);
+  border: 1px solid var(--warning);
+  color: #92400E;
+}
+
+.vectra-alert-info {
+  background: linear-gradient(135deg, rgba(17, 76, 90, 0.08) 0%, rgba(17, 76, 90, 0.04) 100%);
+  border: 1px solid var(--info);
+  color: var(--nocturnal-expedition);
+}
+
+/* ENS Resolver Section */
+.vectra-ens-resolver {
+  background: var(--surface-elevated);
+  border-radius: var(--radius-lg);
+  padding: var(--space-xl);
+  border: 1px solid var(--border-subtle);
+}
+
+/* Grid Layouts */
+.vectra-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: var(--space-lg);
+}
+
+.vectra-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-lg);
+}
+
+@media (max-width: 768px) {
+  .vectra-grid-2,
+  .vectra-grid-3 {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Form Input Groups */
+.vectra-input-group {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--space-md);
+  align-items: stretch;
+}
+
+@media (max-width: 640px) {
+  .vectra-input-group {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Loading State */
+.vectra-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-2xl);
+  color: var(--text-muted);
+  font-size: 0.9375rem;
+}
+
+/* Empty State */
+.vectra-empty {
+  text-align: center;
+  padding: var(--space-3xl) var(--space-xl);
+  color: var(--text-muted);
+}
+
+.vectra-empty-icon {
+  font-size: 2.5rem;
+  margin-bottom: var(--space-lg);
+  opacity: 0.3;
+}
+
+.vectra-empty-text {
+  font-size: 0.9375rem;
+  line-height: 1.6;
+}
+
+/* Monospace Values (addresses, hashes, etc.) */
+.vectra-mono {
+  font-family: var(--font-geist-mono);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+  background: var(--surface-elevated);
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+}
+
+/* Links */
+.vectra-link {
+  color: var(--accent-tertiary);
+  text-decoration: none;
+  font-weight: 500;
+  transition: color var(--transition-fast);
+  font-size: 0.875rem;
+}
+
+.vectra-link:hover {
+  color: var(--accent-primary);
+  text-decoration: underline;
+}
+
+/* Settlement Summary Box */
+.vectra-settlement-summary {
+  background: var(--surface-dark);
+  color: var(--text-inverse);
+  border-radius: var(--radius-lg);
+  padding: var(--space-xl);
+  border: 1px solid var(--border-dark);
+}
+
+.vectra-settlement-summary-value {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: var(--forsythia);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  margin-top: var(--space-sm);
+}
+
+/* Invite Code Display */
+.vectra-invite-code {
+  font-family: var(--font-geist-mono);
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  color: var(--accent-tertiary);
+  text-transform: uppercase;
+}
+
+/* Transaction Hash Links */
+.vectra-tx-link {
+  font-family: var(--font-geist-mono);
+  font-size: 0.75rem;
+  color: var(--accent-tertiary);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+.vectra-tx-link:hover {
+  color: var(--accent-primary);
+}
+
+/* Compact Spacing for Dense Sections */
+.vectra-compact {
+  padding: var(--space-md);
+}
+
+/* Premium Dividers */
+.vectra-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, var(--border) 50%, transparent 100%);
+  margin: var(--space-xl) 0;
+}
+
+/* Responsive Text */
+@media (max-width: 640px) {
+  .vectra-heading {
+    font-size: 1rem;
+  }
+  
+  .vectra-stat-value {
+    font-size: 1.5rem;
+  }
+  
+  .vectra-settlement-summary-value {
+    font-size: 2rem;
+  }
+}
+
+/* Dark Mode Support (if needed) */
+@media (prefers-color-scheme: dark) {
+  /* Override colors for dark mode if needed in future */
+}
+
+
+/* ============================================
+   SPECIFIC BADGE & BUTTON STYLING FIXES
+   ============================================ */
+
+/* Target Coordinator/Member badges - cyan badges become Forsythia */
+main span[class*="rounded-full"][class*="bg-cyan-400"] {
+  background: var(--forsythia) !important;
+  color: var(--oceanic-noir) !important;
+  font-weight: 700 !important;
+}
+
+/* Small secondary badges - assume Member role */
+main span[class*="text-xs"][class*="font-semibold"][class*="bg-slate"] {
+  background: var(--mystic-mint) !important;
+  color: var(--nocturnal-expedition) !important;
+  font-weight: 600 !important;
+  border: 1px solid var(--border) !important;
+}
+
+/* Activity History "Settlement" label specific fix */
+main section div[class*="flex"][class*="items-center"][class*="gap-2"] > span:first-child[class*="text-xs"] {
+  color: var(--oceanic-noir) !important;
+  font-weight: 600 !important;
+}
+
+/* Refresh/last buttons in sections - make them dark teal */
+main section button[class*="bg-white"]:last-of-type {
+  background: var(--nocturnal-expedition) !important;
+  color: var(--text-inverse) !important;
+  font-weight: 600 !important;
+  border-color: var(--nocturnal-expedition) !important;
+}
+
+main section button[class*="bg-white"]:last-of-type:hover:not(:disabled) {
+  background: #156074 !important;
+}
+
+/* Member card badges - improve contrast */
+main section span[class*="rounded-full"] {
+  font-weight: 600 !important;
+  min-width: fit-content !important;
+}
+
+/* All cyan buttons become Forsythia */
+main button[class*="bg-cyan"] {
+  background: var(--forsythia) !important;
+  color: var(--oceanic-noir) !important;
+}
+
+main button[class*="bg-cyan"]:hover:not(:disabled) {
+  background: #FFD633 !important;
 }

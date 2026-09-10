@@ -2946,8 +2946,17 @@ export default function Home() {
 
   if (!mounted) {
     return (
-      <main className="min-h-screen bg-slate-950 text-white">
-        <div className="mx-auto max-w-6xl px-6 py-12">
+      <main style={{ 
+        minHeight: '100vh', 
+        background: 'var(--background)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center'
+      }}>
+        <div style={{ 
+          color: 'var(--text-secondary)',
+          fontSize: '0.9375rem'
+        }}>
           Loading Vectra...
         </div>
       </main>
@@ -2955,82 +2964,146 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-950 text-white">
-      <div className="mx-auto max-w-6xl px-6 py-10">
+    <main style={{ minHeight: '100vh', background: 'var(--background)' }}>
+      <div style={{ 
+        maxWidth: '84rem', 
+        marginLeft: 'auto', 
+        marginRight: 'auto', 
+        padding: '3rem 1.5rem'
+      }}>
 
         {/* Header */}
-        <header className="mb-10 flex flex-col gap-6 border-b border-slate-800 pb-8 md:flex-row md:items-center md:justify-between">
-          <div>
-            <div className="mb-2 text-sm font-semibold uppercase tracking-[0.25em] text-cyan-400">
-              Vectra
+        <header style={{
+          marginBottom: 'var(--space-3xl)',
+          paddingBottom: 'var(--space-2xl)',
+          borderBottom: '1px solid var(--border-subtle)',
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 'var(--space-xl)',
+          alignItems: 'flex-start',
+          justifyContent: 'space-between'
+        }}>
+          <div style={{ flex: '1 1 auto', minWidth: '300px' }}>
+            <div style={{
+              fontSize: '0.6875rem',
+              fontWeight: 700,
+              textTransform: 'uppercase',
+              letterSpacing: '0.15em',
+              color: 'var(--text-muted)',
+              marginBottom: 'var(--space-md)'
+            }}>
+              VECTRA
             </div>
 
-            <h1 className="text-4xl font-bold tracking-tight">
-              Intent-Based Group Treasury
+            <h1 className="text-display" style={{
+              fontSize: 'clamp(2rem, 5vw, 3.5rem)',
+              fontWeight: 500,
+              color: 'var(--text-primary)',
+              lineHeight: 1.1,
+              marginBottom: 'var(--space-lg)',
+              letterSpacing: '-0.02em'
+            }}>
+              Intent-Based<br />Group Treasury
             </h1>
 
-            <p className="mt-3 max-w-2xl text-slate-400">
-              Record shared expenses,
-              optimize the debt graph,
-              and settle the minimum
-              number of USDC transfers
-              on Arc.
+            <p style={{
+              maxWidth: '38rem',
+              fontSize: '1rem',
+              lineHeight: 1.6,
+              color: 'var(--text-secondary)',
+              letterSpacing: '-0.011em'
+            }}>
+              Record shared expenses, optimize the debt graph, and settle
+              the minimum number of USDC transfers on Arc.
             </p>
           </div>
 
-          <div>
+          <div style={{ 
+            display: 'flex', 
+            flexDirection: 'column', 
+            alignItems: 'flex-end', 
+            gap: 'var(--space-sm)'
+          }}>
             {!isConnected ? (
               <button
-                onClick={
-                  handleConnect
-                }
-                className="rounded-xl bg-cyan-400 px-5 py-3 font-semibold text-slate-950 transition hover:bg-cyan-300"
+                onClick={handleConnect}
+                className="btn-primary"
               >
                 Connect Wallet
               </button>
             ) : (
-              <div className="flex flex-col items-end gap-2">
-                <div className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-2 text-sm">
+              <div style={{ 
+                display: 'flex', 
+                flexDirection: 'column', 
+                alignItems: 'flex-end', 
+                gap: 'var(--space-sm)'
+              }}>
+                <div style={{
+                  background: 'var(--surface)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-lg)',
+                  padding: 'var(--space-md) var(--space-lg)',
+                  boxShadow: 'var(--shadow-sm)'
+                }}>
                   {ensName ? (
                     <div>
-                      <div className="font-semibold text-cyan-300">
+                      <div style={{
+                        fontWeight: 600,
+                        color: 'var(--accent-tertiary)',
+                        fontSize: '0.9375rem'
+                      }}>
                         {ensName}
                       </div>
-
-                      <div className="mt-1 text-xs text-slate-500">
-                        {formatAddress(
-                          address
-                        )}
+                      <div className="text-mono" style={{
+                        marginTop: 'var(--space-xs)',
+                        fontSize: '0.75rem',
+                        color: 'var(--text-muted)'
+                      }}>
+                        {formatAddress(address)}
                       </div>
                     </div>
                   ) : isEnsLoading ? (
-                    <div className="text-slate-400">
+                    <div style={{
+                      color: 'var(--text-muted)',
+                      fontSize: '0.875rem'
+                    }}>
                       Resolving ENS...
                     </div>
                   ) : (
-                    formatAddress(
-                      address
-                    )
+                    <div className="text-mono" style={{
+                      fontSize: '0.875rem',
+                      color: 'var(--text-secondary)'
+                    }}>
+                      {formatAddress(address)}
+                    </div>
                   )}
                 </div>
 
                 {isAuthenticating && (
-                  <div className="text-xs text-slate-400">
+                  <div style={{
+                    fontSize: '0.75rem',
+                    color: 'var(--text-muted)'
+                  }}>
                     Authenticating...
                   </div>
                 )}
 
                 {authError && (
-                  <div className="text-xs text-red-400">
+                  <div style={{
+                    fontSize: '0.75rem',
+                    color: 'var(--danger)'
+                  }}>
                     {authError}
                   </div>
                 )}
 
                 <button
-                  onClick={
-                    handleDisconnect
-                  }
-                  className="text-xs text-slate-500 hover:text-white"
+                  onClick={handleDisconnect}
+                  className="btn-ghost"
+                  style={{
+                    padding: '0.375rem 0.75rem',
+                    fontSize: '0.75rem'
+                  }}
                 >
                   Disconnect
                 </button>
@@ -3040,142 +3113,170 @@ export default function Home() {
         </header>
 
         {/* Network warning */}
-        {isConnected &&
-          !isArcNetwork && (
-            <section className="mb-8 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-5">
-              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <h2 className="font-semibold text-amber-300">
-                    Wrong network
-                  </h2>
-
-                  <p className="mt-1 text-sm text-amber-200/70">
-                    Vectra requires Arc Testnet.
-                  </p>
-                </div>
-
-                <button
-                  onClick={() =>
-                    switchChain({
-                      chainId:
-                        arcTestnet.id,
-                    })
-                  }
-                  disabled={
-                    isSwitching
-                  }
-                  className="rounded-lg bg-amber-400 px-4 py-2 text-sm font-semibold text-slate-950 disabled:opacity-50"
-                >
-                  {isSwitching
-                    ? "Switching..."
-                    : "Switch to Arc"}
-                </button>
+        {isConnected && !isArcNetwork && (
+          <section className="card-premium" style={{
+            marginBottom: 'var(--space-2xl)',
+            padding: 'var(--space-lg)',
+            background: 'linear-gradient(135deg, #FFF7E6 0%, #FFE8CC 100%)',
+            border: '1px solid var(--deep-saffron)',
+            borderRadius: 'var(--radius-lg)'
+          }}>
+            <div style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: 'var(--space-lg)',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}>
+              <div>
+                <h2 style={{
+                  fontWeight: 600,
+                  color: '#92400E',
+                  fontSize: '1rem',
+                  marginBottom: 'var(--space-xs)'
+                }}>
+                  Wrong Network
+                </h2>
+                <p style={{
+                  fontSize: '0.875rem',
+                  color: '#78350F'
+                }}>
+                  Vectra requires Arc Testnet for settlement execution.
+                </p>
               </div>
-            </section>
-          )}
+
+              <button
+                onClick={() => switchChain({ chainId: arcTestnet.id })}
+                disabled={isSwitching}
+                className="btn-secondary"
+                style={{
+                  background: 'var(--deep-saffron)',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                {isSwitching ? "Switching..." : "Switch to Arc"}
+              </button>
+            </div>
+          </section>
+        )}
 
         {/* Groups */}
-<section className="mb-6 rounded-2xl border border-slate-800 bg-slate-900/70 p-6">
-  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-    <div>
-      <h2 className="text-lg font-semibold">
-        Your Groups
-      </h2>
-
-      <p className="mt-1 text-sm text-slate-500">
-        {isBackendGroupsLoading
-          ? "Loading groups..."
-          : backendGroupsError
-            ? backendGroupsError
-            : "Switch between your Vectra groups."}
-      </p>
-    </div>
-
-    <div className="rounded-lg border border-cyan-500/20 bg-cyan-500/5 px-3 py-2 text-xs text-cyan-300">
-      {backendGroups.length}{" "}
-      {backendGroups.length === 1
-        ? "Group"
-        : "Groups"}
-    </div>
-  </div>
-
-  <div className="mt-5 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-    {backendGroups.map(
-      (group) => {
-        const isActive =
-          group.blockchainGroupId.toLowerCase() ===
-          (activeGroupId ?? "").toLowerCase();
-
-        return (
-          <button
-            key={group.id}
-            type="button"
-            onClick={() =>
-              handleSwitchGroup(
-                group.blockchainGroupId as `0x${string}`,
-                group.name
-              )
-            }
-            className={`rounded-xl border p-4 text-left transition ${
-              isActive
-                ? "border-cyan-400/40 bg-cyan-400/10"
-                : "border-slate-800 bg-slate-950 hover:border-slate-600"
-            }`}
-          >
-            <div className="flex items-center justify-between gap-3">
-              <span
-                className={`font-semibold ${
-                  isActive
-                    ? "text-cyan-300"
-                    : "text-white"
-                }`}
-              >
-                {group.name}
-              </span>
-
-              {isActive && (
-                <span className="rounded-full bg-cyan-400/10 px-2 py-1 text-xs font-semibold text-cyan-300">
-                  Active
-                </span>
-              )}
+        <section className="vectra-section" style={{ marginBottom: 'var(--space-xl)' }}>
+          <div style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: 'var(--space-md)',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: 'var(--space-lg)'
+          }}>
+            <div>
+              <h2 className="vectra-heading">Your Groups</h2>
+              <p className="vectra-subheading">
+                {isBackendGroupsLoading
+                  ? "Loading groups..."
+                  : backendGroupsError
+                    ? backendGroupsError
+                    : "Switch between your Vectra groups."}
+              </p>
             </div>
 
-            <div className="mt-2 truncate text-xs text-slate-500">
-              {group.blockchainGroupId}
+            <div className="badge-status" style={{
+              background: 'var(--mystic-mint)',
+              color: 'var(--accent-tertiary)',
+              padding: '0.375rem 0.75rem',
+              fontSize: '0.8125rem'
+            }}>
+              {backendGroups.length} {backendGroups.length === 1 ? "Group" : "Groups"}
             </div>
-          </button>
-        );
-      }
-    )}
-  </div>
-</section>
+          </div>
+
+          <div className="vectra-grid-3">
+            {backendGroups.map((group) => {
+              const isActive =
+                group.blockchainGroupId.toLowerCase() ===
+                (activeGroupId ?? "").toLowerCase();
+
+              return (
+                <button
+                  key={group.id}
+                  type="button"
+                  onClick={() =>
+                    handleSwitchGroup(
+                      group.blockchainGroupId as `0x${string}`,
+                      group.name
+                    )
+                  }
+                  className={`vectra-group-card ${isActive ? 'vectra-group-card-active' : ''}`}
+                >
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 'var(--space-md)',
+                    marginBottom: 'var(--space-sm)'
+                  }}>
+                    <span style={{
+                      fontWeight: 600,
+                      color: isActive ? 'var(--accent-tertiary)' : 'var(--text-primary)',
+                      fontSize: '0.9375rem'
+                    }}>
+                      {group.name}
+                    </span>
+
+                    {isActive && (
+                      <span className="badge-status" style={{
+                        background: 'var(--forsythia)',
+                        color: 'var(--oceanic-noir)',
+                        fontSize: '0.625rem',
+                        padding: '0.1875rem 0.5rem'
+                      }}>
+                        ACTIVE
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="text-mono" style={{
+                    fontSize: '0.6875rem',
+                    color: 'var(--text-muted)',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap'
+                  }}>
+                    {group.blockchainGroupId}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </section>
 
         {/* Dashboard */}
         <div className="grid gap-6 lg:grid-cols-3">
 
           {/* Wallet */}
-          <section className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6">
-            <h2 className="text-lg font-semibold">
+          <section className="vectra-section">
+            <h2 className="vectra-heading">
               Wallet
             </h2>
 
-            <div className="mt-5 space-y-4">
+            <div style={{ marginTop: 'var(--space-lg)', display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)' }}>
               <div>
-                <div className="text-xs uppercase tracking-wide text-slate-500">
+                <div className="vectra-label">
                   Identity
                 </div>
 
-                <div className="mt-1 text-sm">
+                <div style={{ marginTop: 'var(--space-xs)', fontSize: '0.875rem' }}>
                   {ensName ? (
-                    <span className="font-semibold text-cyan-300">
+                    <span style={{ fontWeight: 600, color: 'var(--accent-tertiary)' }}>
                       {ensName}
                     </span>
                   ) : isEnsLoading ? (
-                    <span className="text-slate-500">
+                    <span style={{ color: 'var(--text-muted)' }}>
                       Resolving ENS...
                     </span>
                   ) : (
-                    <span className="text-slate-300">
+                    <span style={{ color: 'var(--text-secondary)' }}>
                       No ENS name
                     </span>
                   )}
@@ -3183,22 +3284,22 @@ export default function Home() {
               </div>
 
               <div>
-                <div className="text-xs uppercase tracking-wide text-slate-500">
+                <div className="vectra-label">
                   Address
                 </div>
 
-                <div className="mt-1 break-all text-sm text-slate-300">
+                <div className="text-mono" style={{ marginTop: 'var(--space-xs)', wordBreak: 'break-all', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
                   {address ??
                     "Not connected"}
                 </div>
               </div>
 
               <div>
-                <div className="text-xs uppercase tracking-wide text-slate-500">
+                <div className="vectra-label">
                   Network
                 </div>
 
-                <div className="mt-1 text-sm">
+                <div style={{ marginTop: 'var(--space-xs)', fontSize: '0.875rem', color: 'var(--text-primary)' }}>
                   {isArcNetwork
                     ? "Arc Testnet ✓"
                     : chainId
@@ -3208,11 +3309,11 @@ export default function Home() {
               </div>
 
               <div>
-                <div className="text-xs uppercase tracking-wide text-slate-500">
+                <div className="vectra-label">
                   USDC Balance
                 </div>
 
-                <div className="mt-1 text-2xl font-bold">
+                <div className="vectra-stat-value">
                   {isBalanceLoading
                     ? "Loading..."
                     : usdcBalance !==
@@ -3228,20 +3329,20 @@ export default function Home() {
           </section>
 
           {/* Group */}
-          <section className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6 lg:col-span-2">
-            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <section className="vectra-section" style={{ gridColumn: 'span 2 / span 2' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-lg)', alignItems: 'flex-start', justifyContent: 'space-between' }}>
               <div>
-                <h2 className="text-lg font-semibold">
+                <h2 className="vectra-heading">
                   Group
                 </h2>
 
-                <p className="mt-1 text-sm text-slate-500">
+                <p className="vectra-subheading">
                   {activeGroupName || "No active group"}
                 </p>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 font-mono text-xs text-slate-400">
+              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 'var(--space-sm)' }}>
+                <div className="vectra-mono">
                   {formatAddress(
                     activeGroupId ?? undefined
                   )}
@@ -3252,7 +3353,17 @@ export default function Home() {
                     type="button"
                     onClick={handleDeactivateGroup}
                     disabled={isDeactivatingGroup}
-                    className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-300 transition hover:bg-red-500/20 disabled:opacity-50"
+                    style={{
+                      background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.08) 0%, rgba(239, 68, 68, 0.04) 100%)',
+                      border: '1px solid var(--danger)',
+                      borderRadius: 'var(--radius-md)',
+                      padding: '0.375rem 0.75rem',
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      color: '#991B1B',
+                      cursor: 'not-allowed',
+                      transition: 'all var(--transition-fast)'
+                    }}
                   >
                     {isDeactivatingGroup
                       ? "Deactivating..."
@@ -3263,25 +3374,36 @@ export default function Home() {
             </div>
 
             {deactivateError && (
-              <div className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300">
+              <div className="vectra-alert vectra-alert-error" style={{ marginTop: 'var(--space-lg)' }}>
                 {deactivateError}
               </div>
             )}
 
             {deactivateSuccess && (
-              <div className="mt-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 text-sm text-emerald-300">
+              <div className="vectra-alert vectra-alert-success" style={{ marginTop: 'var(--space-lg)' }}>
                 {deactivateSuccess}
               </div>
             )}
 
             {/* Invite code for active group */}
             {activeBackendGroup && activeBackendGroup.inviteCode && (
-              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950 p-4">
+              <div style={{
+                marginTop: 'var(--space-lg)',
+                display: 'flex',
+                flexWrap: 'wrap',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 'var(--space-md)',
+                background: 'var(--mystic-mint)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-lg)',
+                padding: 'var(--space-lg)'
+              }}>
                 <div>
-                  <div className="text-xs uppercase tracking-wide text-slate-500">
+                  <div className="vectra-label">
                     Invite code
                   </div>
-                  <div className="mt-1 font-mono text-base font-bold tracking-wider text-cyan-300">
+                  <div className="vectra-invite-code" style={{ marginTop: 'var(--space-xs)' }}>
                     {activeBackendGroup.inviteCode}
                   </div>
                 </div>
@@ -3298,7 +3420,8 @@ export default function Home() {
                       2000
                     );
                   }}
-                  className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-semibold text-slate-300 transition hover:border-cyan-400 hover:text-cyan-300"
+                  className="btn-ghost"
+                  style={{ padding: '0.375rem 0.75rem', fontSize: '0.75rem' }}
                 >
                   {copiedInviteCode
                     ? "Copied ✓"
@@ -3307,14 +3430,14 @@ export default function Home() {
               </div>
             )}
 
-            <div className="mt-6 space-y-4">
+            <div style={{ marginTop: 'var(--space-xl)', display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)' }}>
               {/* Create Group */}
               <div>
-                <div className="mb-2 text-xs uppercase tracking-wide text-slate-500">
+                <div className="vectra-label" style={{ marginBottom: 'var(--space-sm)' }}>
                   Create Group
                 </div>
 
-                <div className="grid gap-3 md:grid-cols-[1fr_auto]">
+                <div className="vectra-input-group">
                   <input
                     value={
                       groupName
@@ -3327,7 +3450,7 @@ export default function Home() {
                       )
                     }
                     placeholder="New group name"
-                    className="rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm outline-none focus:border-cyan-400"
+                    className="input-premium"
                   />
 
                   <button
@@ -3342,7 +3465,8 @@ export default function Home() {
                       !isArcNetwork ||
                       !groupName.trim()
                     }
-                    className="rounded-xl bg-white px-5 py-3 text-sm font-semibold text-slate-950 disabled:cursor-not-allowed disabled:opacity-40"
+                    className="btn-secondary"
+                    style={{ whiteSpace: 'nowrap' }}
                   >
                     {isCreatingGroup
                       ? "Registering..."
@@ -3355,7 +3479,7 @@ export default function Home() {
                 </div>
 
                 {createGroupError && (
-                  <div className="mt-2 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-300">
+                  <div className="vectra-alert vectra-alert-error" style={{ marginTop: 'var(--space-sm)' }}>
                     {createGroupError}
                   </div>
                 )}
@@ -3363,11 +3487,11 @@ export default function Home() {
 
               {/* Join Group */}
               <div>
-                <div className="mb-2 text-xs uppercase tracking-wide text-slate-500">
+                <div className="vectra-label" style={{ marginBottom: 'var(--space-sm)' }}>
                   Join Group
                 </div>
 
-                <div className="grid gap-3 md:grid-cols-[1fr_auto]">
+                <div className="vectra-input-group">
                   <input
                     value={joinCode}
                     onChange={(event) => {
@@ -3378,7 +3502,8 @@ export default function Home() {
                       setJoinGroupSuccess(null);
                     }}
                     placeholder="VXR-XXXXX"
-                    className="rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 font-mono text-sm uppercase tracking-wider outline-none focus:border-cyan-400"
+                    className="input-premium text-mono"
+                    style={{ textTransform: 'uppercase', letterSpacing: '0.1em' }}
                   />
 
                   <button
@@ -3388,7 +3513,8 @@ export default function Home() {
                       !isConnected ||
                       !joinCode.trim()
                     }
-                    className="rounded-xl bg-cyan-400 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-40"
+                    className="btn-primary"
+                    style={{ whiteSpace: 'nowrap' }}
                   >
                     {isJoiningGroup
                       ? "Joining..."
@@ -3397,13 +3523,13 @@ export default function Home() {
                 </div>
 
                 {joinGroupError && (
-                  <div className="mt-2 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-300">
+                  <div className="vectra-alert vectra-alert-error" style={{ marginTop: 'var(--space-sm)' }}>
                     {joinGroupError}
                   </div>
                 )}
 
                 {joinGroupSuccess && (
-                  <div className="mt-2 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3 text-xs text-emerald-300">
+                  <div className="vectra-alert vectra-alert-success" style={{ marginTop: 'var(--space-sm)' }}>
                     {joinGroupSuccess}
                   </div>
                 )}
@@ -3411,7 +3537,7 @@ export default function Home() {
             </div>
 
             {(isCreatingGroup || isCreatingGroupConfirming || isCreatingGroupBackend) && (
-              <div className="mt-4 rounded-xl bg-slate-950 p-4 text-sm text-slate-400">
+              <div className="vectra-alert vectra-alert-info" style={{ marginTop: 'var(--space-lg)' }}>
                 {isCreatingGroup
                   ? "Submitting transaction..."
                   : isCreatingGroupConfirming
@@ -3421,9 +3547,9 @@ export default function Home() {
             )}
 
             {isGroupCreatedOnChain && !isCreatingGroupBackend && !createGroupError && !isCreatingGroup && (
-              <div className="mt-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 text-sm">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-emerald-300">
+              <div className="vectra-alert vectra-alert-success" style={{ marginTop: 'var(--space-lg)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
+                  <span>
                     Group created ✓
                   </span>
 
@@ -3432,22 +3558,22 @@ export default function Home() {
                       href={`https://testnet.arcscan.app/tx/${createGroupTxHash}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-xs text-cyan-400 hover:text-cyan-300"
+                      className="vectra-link"
                     >
-                      View transaction on Arcscan ↗
+                      View on Arcscan ↗
                     </a>
                   )}
                 </div>
               </div>
             )}
 
-            <div className="mt-6 grid gap-4 md:grid-cols-3">
-              <div className="rounded-xl bg-slate-950 p-4">
-                <div className="text-xs uppercase tracking-wide text-slate-500">
+            <div className="vectra-grid-3" style={{ marginTop: 'var(--space-xl)' }}>
+              <div className="vectra-stat-card">
+                <div className="vectra-label">
                   Coordinator
                 </div>
 
-                <div className="mt-2 font-mono text-sm">
+                <div className="text-mono" style={{ marginTop: 'var(--space-sm)', fontSize: '0.875rem', color: 'var(--text-primary)' }}>
                   {isCoordinatorLoading
                     ? "Loading..."
                     : formatIdentity(
@@ -3456,18 +3582,18 @@ export default function Home() {
                 </div>
 
                 {isCoordinator && (
-                  <div className="mt-2 text-xs text-emerald-400">
+                  <div style={{ marginTop: 'var(--space-sm)', fontSize: '0.75rem', color: 'var(--success)', fontWeight: 600 }}>
                     You are coordinator ✓
                   </div>
                 )}
               </div>
 
-              <div className="rounded-xl bg-slate-950 p-4">
-                <div className="text-xs uppercase tracking-wide text-slate-500">
+              <div className="vectra-stat-card">
+                <div className="vectra-label">
                   Nonce
                 </div>
 
-                <div className="mt-2 text-2xl font-bold">
+                <div className="vectra-stat-value">
                   {isNonceLoading
                     ? "..."
                     : groupNonce?.toString() ??
@@ -3475,12 +3601,12 @@ export default function Home() {
                 </div>
               </div>
 
-              <div className="rounded-xl bg-slate-950 p-4">
-                <div className="text-xs uppercase tracking-wide text-slate-500">
+              <div className="vectra-stat-card">
+                <div className="vectra-label">
                   Members
                 </div>
 
-                <div className="mt-2 text-2xl font-bold">
+                <div className="vectra-stat-value">
                   {
                     members.length
                   }
