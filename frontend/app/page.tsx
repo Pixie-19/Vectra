@@ -2584,14 +2584,16 @@ export default function Home() {
         return;
       }
 
+      if (groupNonce === undefined) {
+        return;
+      }
+
       const transfersHash =
         calculateTransfersHash(
           settlements
         );
 
-      const nonce =
-        groupNonce ??
-        BigInt(0);
+      const nonce = groupNonce;
 
       const deadline =
         BigInt(
