@@ -23,7 +23,9 @@ export async function apiFetch<T>(
     headers.set("Authorization", `Bearer ${sessionToken}`);
   }
 
-  const response = await fetch(`${API_URL}${path}`, {
+  const url = `${API_URL.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`;
+
+  const response = await fetch(url, {
     ...options,
     headers,
   });
