@@ -35,6 +35,9 @@ export async function apiFetch<T>(
   if (!response.ok) {
     if (response.status === 401) {
       setSessionToken(null);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("vectra:auth-expired"));
+      }
     }
     throw new Error(
       data?.error ?? `Request failed with status ${response.status}`

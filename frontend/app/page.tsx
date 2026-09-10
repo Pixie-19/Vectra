@@ -605,6 +605,23 @@ export default function Home() {
   }, [address]);
 
   /*
+   * Handle backend session expiry signalled by apiFetch on HTTP 401.
+   *
+   * Setting isAuthenticated to false lets the existing authentication
+   * effect re-run and obtain a fresh session automatically.
+   */
+  useEffect(() => {
+    const handleAuthExpired = () => {
+      setIsAuthenticated(false);
+      setAuthError("Your session expired. Re-authenticating...");
+    };
+    window.addEventListener("vectra:auth-expired", handleAuthExpired);
+    return () => {
+      window.removeEventListener("vectra:auth-expired", handleAuthExpired);
+    };
+  }, []);
+
+  /*
    * Fetch the connected wallet's groups from the
    * backend whenever the wallet address changes.
    */
