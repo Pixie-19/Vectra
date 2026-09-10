@@ -8,7 +8,7 @@ import authRouter from "./routes/auth.js";
 import { requireAuth, type AuthenticatedRequest } from "./middleware/auth.js";
 
 const app = express();
-const PORT = 4000;
+const PORT = Number(process.env.PORT) || 4000;
 
 // CORS configuration
 const FRONTEND_URL = process.env.FRONTEND_URL;
