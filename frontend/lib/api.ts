@@ -33,6 +33,9 @@ export async function apiFetch<T>(
   const data = await response.json().catch(() => null);
 
   if (!response.ok) {
+    if (response.status === 401) {
+      setSessionToken(null);
+    }
     throw new Error(
       data?.error ?? `Request failed with status ${response.status}`
     );
